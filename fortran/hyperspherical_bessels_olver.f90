@@ -29,7 +29,8 @@
     integer, parameter :: AIRY_FALLBACK_OPEN_L_MIN = 100
     integer, parameter :: AIRY_FALLBACK_CLOSED_L_MIN = 150
 
-    public :: phi_olver, u_olver
+    public :: phi_olver, u_olver, audit_variant
+    integer, save :: audit_variant = -1
 
     contains
 
@@ -64,6 +65,14 @@
     logical, intent(in) :: reduced
     real(dl) :: val
     real(dl) :: achi, symm, sin_k, j_l
+    character(len=16) :: audit_env
+    integer :: audit_stat
+
+    if (audit_variant < 0) then
+        call get_environment_variable("CAMB_AUDIT_VARIANT", audit_env, status=audit_stat)
+        audit_variant = 1
+        if (audit_stat == 0) read(audit_env, *, iostat=audit_stat) audit_variant
+    end if
 
     call normalize_chi(l, K, nu, chi, achi, symm)
 
@@ -89,6 +98,12 @@
     end if
 
     sin_k = curved_radius(K, achi)
+    if ((audit_variant == 3 .or. audit_variant == 7 .or. audit_variant == 9) .and. &
+        K == 1 .and. nu-real(l,dl) <= 112._dl) then
+        val = symm*phi_recurs(l,K,nu,achi)
+        if (reduced) val = val*sin_k
+        return
+    end if
     val = olver_reduced(l, K, nu, achi, sin_k, symm)
     if (.not. reduced) val = val/sin_k
 
@@ -110,7 +125,8 @@
 
     alpha_gate = nu/real(l, dl)
 
-    if (use_smallchi_map(l, nu, achi, alpha_gate)) then
+    if (use_smallchi_map(l, nu, achi, alpha_gate) .and. &
+        .not.(audit_variant == 4 .and. K == 1 .and. nu-real(l,dl) <= 112._dl)) then
         call compute_olver_z_amp_smallchi(l, K, nu, achi, z, amp)
         if (amp <= 0._dl) then
             u = 0._dl
@@ -137,8 +153,13 @@
         ! The open-space pointwise gate is unchanged.
         if (K == 1) then
             ! nu is an integer mode > l for K=1, so the denominator is >= 2.
-            if (const_pi/(4._dl*(nu - real(l, dl))) > OLVER_GATE_CLOSED_EPS) then
-                u = fallback_reduced(l, K, nu, achi, sin_k, symm)
+            if (merge(achi/(2._dl*(nu-real(l,dl))), const_pi/(4._dl*(nu-real(l,dl))), &
+                audit_variant == 0) > OLVER_GATE_CLOSED_EPS) then
+                if (audit_variant == 2 .and. achi/(2._dl*(nu-real(l,dl))) <= OLVER_GATE_CLOSED_EPS) then
+                    u = symm*sin_k*phi_recurs(l,K,nu,achi)
+                else
+                    u = fallback_reduced(l, K, nu, achi, sin_k, symm)
+                end if
                 return
             end if
         else if (K == -1) then

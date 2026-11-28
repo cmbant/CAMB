@@ -1,0 +1,66 @@
+name: Closed seed mechanism audit
+on:
+  push:
+    branches: [test-closed-seed-diagnosis]
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+      - run: python -m pip install -e .
+      - name: Run fixed-cosmology diagnostic variants
+        env:
+          OMP_NUM_THREADS: "1"
+        run: |
+          cat > "$RUNNER_TEMP/audit.py" <<'PY'
+          import os, time
+          from pathlib import Path
+          import numpy as np
+          import camb
+          p=camb.CAMBparams()
+          p.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, omk=-0.05, tau=0.06)
+          p.InitPower.set_params(As=2.1e-9, ns=0.965)
+          p.set_for_lmax(1200, lens_potential_accuracy=1)
+          p.WantTransfer=True
+          v=int(os.environ["CAMB_AUDIT_VARIANT"])
+          t=time.perf_counter()
+          r=camb.get_results(p)
+          print("RUNTIME",v,time.perf_counter()-t,flush=True)
+          s=r.get_cmb_power_spectra(lmax=1200,CMB_unit="muK")
+          tr=r.get_cmb_transfer_data()
+          np.savez_compressed(Path(os.environ["RUNNER_TEMP"])/f"v{v}.npz",total=s["total"],lens=r.get_lens_potential_cls(lmax=1200),delta=tr.delta_p_l_k,L=tr.L,q=tr.q)
+          PY
+          for v in 0 1 2 3 4 5 6 7 9; do
+            CAMB_AUDIT_VARIANT="$v" PYTHONPATH="$PWD" python "$RUNNER_TEMP/audit.py"
+          done
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          import numpy as np
+          t=Path(os.environ["RUNNER_TEMP"])
+          for refv in (0,3,7):
+              ref=np.load(t/f"v{refv}.npz")
+              for v in (0,1,2,3,4,5,6,7,9):
+                  if v==refv: continue
+                  a=np.load(t/f"v{v}.npz")
+                  for k in ("total","lens","delta"):
+                      x=ref[k];y=a[k]
+                      assert x.shape==y.shape
+                      if k=="delta":
+                          assert np.array_equal(ref["L"],a["L"]) and np.array_equal(ref["q"],a["q"])
+                      axes=(1,2) if k=="delta" else (0,)
+                      err=np.abs(x-y)/np.maximum(np.max(np.abs(x),axis=axes,keepdims=True),1e-300)
+                      idx=np.unravel_index(np.argmax(err),err.shape)
+                      print("DIAGNOSTIC",refv,v,k,np.max(err,axis=axes).tolist(),"worst",idx)
+                      if k=="delta":
+                          i,j,n=idx
+                          print("MODE",refv,v,i,int(ref["L"][j]),float(ref["q"][n]),float(x[idx]),float(y[idx]),"nu",float(ref["q"][n]*299792.458/(67.5*np.sqrt(.05))))
+          PY

@@ -55,7 +55,7 @@
     use results
     use Interpolation, only: cubic_spline_second_derivs
     use GaugeInterface
-    use HypersphericalBesselOlver, only: u_olver, phi_olver
+    use HypersphericalBesselOlver, only: u_olver, phi_olver, audit_variant
     use SpherBessels
     use MassiveNu
     use InitialPower
@@ -2791,14 +2791,17 @@
             ch = cosh(chi)
         end if
 
-        if (y1 == 0._dl) y1 = u_olver(l, K, nu, chi)
+        if (y1 == 0._dl .or. (K == 1 .and. nu-real(l,dl) <= 112._dl .and. &
+            (audit_variant == 5 .or. audit_variant == 6 .or. audit_variant == 7 .or. audit_variant == 9))) &
+            y1 = u_olver(l, K, nu, chi)
 
         phi = y1/sh
         phi_vals(1) = phi
 
         nSubSteps = max(1, ceiling(dchisource/dchimax))
 
-        if (nSubSteps >= direct_olver_min_substeps) then
+        if (nSubSteps >= direct_olver_min_substeps .or. (K == 1 .and. nu-real(l,dl) <= 112._dl .and. &
+            (audit_variant == 6 .or. audit_variant == 7))) then
             call FillDirectOlverPhiVals(l, K, nu, dchisource, sgn, isgn, nIntSteps, &
                 chiDispTop, minphi, chi, y1, phi_vals, last_ix)
 
