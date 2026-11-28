@@ -22,12 +22,8 @@ CAMB supplies the parity factor. The regular solution $u=s\Phi_\ell^\nu$ obeys
  \label{eq:radial}
 \end{equation}
 The new routine \texttt{refined\_u} accelerates the existing pointwise Olver
-fallback. It returns $u$ directly; the flat, near-flat and leading Olver
-formulas, coordinate folding, and source integration are unchanged. In closed
-geometry the old radial gate is made mode-wide: use the maximum of
-$\chi/[2(\nu-\ell)]$ on the folded domain, $\pi/[4(\nu-\ell)]$, instead
-of switching at a particular $\chi$. This avoids an artificial jump in
-adjacent Numerov seed values.
+fallback. It returns $u$ directly; the flat, near-flat and leading Olver paths,
+coordinate folding, and source integration are unchanged.
 
 \section{Exact representations in the degenerate limits}
 \paragraph{Open geometry.}
@@ -192,17 +188,25 @@ forward-error certificates. Near zeros the relevant accuracy is absolute or
 peak-normalized, not relative. No new hyperspherical recurrence is used.
 On a retained 64,323-point positive-frequency stress grid (both curvature
 signs and flat space), the complete dispatcher had no errors above
-$2\times10^{-4}$; the new paths directly accepted 20,678 of 20,879 originally selected curved
+$2\times10^{-4}$; the new paths directly accepted 20,678 of 20,879 curved
 fallback calls with $\ell>2$. An independent turning-point grid and a
 compact-domain boundary grid, the latter extending to $\ell\simeq10^6$,
 also passed the corresponding peak/local-scale tests. In a standalone
 Fortran harness with the actual CAMB numerical routines, the median
-CPU time per point was 2.19 versus 0.44 microseconds (original versus
+CPU time per point was 2.35 versus 0.52 microseconds (original versus
 candidate, identical GNU Fortran optimization flags). These are synthetic
 pointwise timings, not cosmological speedups. The absolute error floors also
 avoid 266 rejected polynomial evaluations in 3,024 targeted closed-zero tests.
 
-The change is deliberately limited to the pointwise fallback; a full CAMB
-spectra and transfer-function comparison is still required before replacing
-the leading Olver path or removing the safety fallback.
+A full single-thread CAMB comparison against the matching baseline at
+$\ell_{\max}=1200$, $\Omega_K=-0.05,-0.01,0,0.01,0.05$ found a largest
+per-spectrum peak-normalized difference of $4.61\times10^{-5}$, and largest
+source-normalized scalar transfer difference of $3.98\times10^{-5}$.
+Flat results were identical; whole-model runtimes were essentially unchanged.
+A mode-wide closed gate was also tested: although it suppressed the old radial
+switch discontinuity, it changed the strongly closed transfer data by up to
+$2.66\times10^{-3}$ of the source maximum, so it is not included here.
+These comparisons establish agreement with the baseline, not absolute
+cosmological accuracy. Retain the existing leading map and safety paths
+pending higher-accuracy cosmological reference tests.
 \end{document}

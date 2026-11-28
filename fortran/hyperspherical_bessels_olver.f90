@@ -131,13 +131,11 @@
         ! cases, high-l cases to l=10000, dense turning samples, very small chi,
         ! and open-space tails about 80 oscillations past the turning region.
         !
-        ! In closed geometry use the maximum endpoint metric on the folded
-        ! domain. This avoids switching approximations as chi crosses the
-        ! old radial gate, which can affect adjacent Numerov seed values.
-        ! The open-space pointwise gate is unchanged.
+        ! Both metrics are cheap, so they are tested before open_alpha_cut,
+        ! which costs a real-exponent power.
         if (K == 1) then
             ! nu is an integer mode > l for K=1, so the denominator is >= 2.
-            if (const_pi/(4._dl*(nu - real(l, dl))) > OLVER_GATE_CLOSED_EPS) then
+            if (achi/(2._dl*(nu - real(l, dl))) > OLVER_GATE_CLOSED_EPS) then
                 u = fallback_reduced(l, K, nu, achi, sin_k, symm)
                 return
             end if
@@ -158,8 +156,8 @@
     end function olver_reduced
 
     function fallback_reduced(l, K, nu, achi, sin_k, symm) result(u)
-    ! Try the refined evaluator first, then retain the previous
-    ! approximations and phi_recurs as safety paths.
+    ! Keep the leading Olver gates unchanged. Try the refined evaluator first,
+    ! then retain the previous approximations and phi_recurs as safety paths.
     integer, intent(in) :: l, K
     real(dl), intent(in) :: nu, achi, sin_k, symm
     real(dl) :: u

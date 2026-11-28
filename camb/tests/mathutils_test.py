@@ -155,15 +155,6 @@ class MathutilsTest(unittest.TestCase):
             with self.subTest(nu=nu):
                 np.testing.assert_allclose(phi_olver(10000, 1, nu, np.array(chi)), expected, atol=5e-15, rtol=0)
 
-    def test_hyperspherical_closed_gate_continuity(self):
-        # The former radial switch was at chi = 1.568 for this mode.
-        # These independent 70-digit Gegenbauer values straddle that switch.
-        chi = np.array([1.5679999843199999, 1.568, 1.56800001568])
-        expected = np.array([-7.360929343717439e-5, -7.361633360463865e-5, -7.362337375159818e-5])
-        result = phi_olver(5000, 1, 5112.0, chi)
-        np.testing.assert_allclose(result, expected, rtol=0, atol=1e-10)
-        np.testing.assert_allclose(np.diff(result), np.diff(expected), rtol=0, atol=1e-11)
-
     def test_hyperspherical_corrected_airy(self):
         # Both curvature signs and both sides of the effective-mu=4,16 cuts.
         cases = [
