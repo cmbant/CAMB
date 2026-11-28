@@ -57,7 +57,7 @@ def _lensing_template():
     return _lensing_template_cache
 
 
-def _extrapolate_lensing_inputs(cls, clpp, lmax):
+def _extrapolate_lensing_inputs(cls, clpp, lmax, template_l_scale=1.0):
     cls_lmax = cls.shape[0] - 1
     clpp_lmax = clpp.shape[0] - 1
     if lmax <= cls_lmax and lmax <= clpp_lmax:
@@ -75,13 +75,20 @@ def _extrapolate_lensing_inputs(cls, clpp, lmax):
     if lmax > cls_lmax:
         if cls_lmax < 2:
             raise ValueError("CMB cls must include l>=2 to extrapolate with the high-L template")
-        tt_scale = cls_out[cls_lmax, 0] / template[cls_lmax, 0]
-        ee_scale = cls_out[cls_lmax, 1] / template[cls_lmax, 1]
+        # TT, EE and TE are shifted in L by the acoustic peak-scale ratio (as Fortran PrepareLensedCLSpectra)
+        template_ell = np.arange(template.shape[0])
+        tail_ell = np.arange(cls_lmax + 1, lmax + 1) / template_l_scale
+
+        def shifted(ell, ix):
+            return np.interp(ell, template_ell, template[:, ix])
+
+        tt_scale = cls_out[cls_lmax, 0] / shifted(cls_lmax / template_l_scale, 0)
+        ee_scale = cls_out[cls_lmax, 1] / shifted(cls_lmax / template_l_scale, 1)
         te_scale = np.sqrt(max(0.0, tt_scale * ee_scale))
-        cls_out[cls_lmax + 1 :, 0] = template[cls_lmax + 1 : lmax + 1, 0] * tt_scale
-        cls_out[cls_lmax + 1 :, 1] = template[cls_lmax + 1 : lmax + 1, 1] * ee_scale
+        cls_out[cls_lmax + 1 :, 0] = shifted(tail_ell, 0) * tt_scale
+        cls_out[cls_lmax + 1 :, 1] = shifted(tail_ell, 1) * ee_scale
         cls_out[cls_lmax + 1 :, 2] = template[cls_lmax + 1 : lmax + 1, 2]
-        cls_out[cls_lmax + 1 :, 3] = template[cls_lmax + 1 : lmax + 1, 3] * te_scale
+        cls_out[cls_lmax + 1 :, 3] = shifted(tail_ell, 3) * te_scale
 
     if lmax > clpp_lmax:
         if clpp_lmax < 2:
@@ -502,6 +509,7 @@ def lensed_cls(
     cache=True,
     use_lensing_template=False,
     low_l_ee_taper=False,
+    template_l_scale=1.0,
 ):
     r"""
     Get the lensed power spectra from the unlensed power spectra and the lensing potential power.
@@ -535,6 +543,8 @@ def lensed_cls(
     :param cache: if leggaus = True, set cache to save the x values and weights between calls (most of the time)
     :param use_lensing_template: if True, allow lmax above the input arrays by extrapolating TT, EE, TE and PP
         with the bundled high-L template scaled at the last supplied multipole
+    :param template_l_scale: if use_lensing_template, evaluate the TT, EE and TE template at L/template_l_scale,
+        aligning its acoustic peaks with the model's; use :attr:`~.results.CAMBdata.scale` to match the Fortran code
     :param low_l_ee_taper: smoothly taper the reionization-bump EE (l<20) out of the lensing kernel, matching
         the Fortran short-range convention; otherwise its low-L lensed BB is window-sensitive when theta_max is set
     :return: 2D array of cls[L, ix], with L starting at zero and ix=0,1,2,3 in order TT, EE, BB, TE.
@@ -548,7 +558,7 @@ def lensed_cls(
         # only TT, EE, BB, TE columns are used; tolerate extra trailing columns
         cls = cls[:, :4]
     if use_lensing_template:
-        cls, clpp = _extrapolate_lensing_inputs(cls, clpp, lmax)
+        cls, clpp = _extrapolate_lensing_inputs(cls, clpp, lmax, template_l_scale)
     elif lmax >= cls.shape[0] or lmax >= clpp.shape[0]:
         raise ValueError("lmax is larger than the input arrays; set use_lensing_template=True to extrapolate")
     npoints = int(sampling_factor * lmax) + 1

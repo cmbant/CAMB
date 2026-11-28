@@ -1031,6 +1031,7 @@ class CambTest(unittest.TestCase):
             delta_cls=False,
             use_lensing_template=True,
             low_l_ee_taper=True,  # the Fortran short-range (AccurateBB=F) path tapers the kernel
+            template_l_scale=data.scale,
         )
         cls_lensed_full = data.get_lensed_cls_with_spectrum(clpp, lmax=3000, lensing_method=full_method)
         np.testing.assert_allclose(cls_lensed2[2:3000, 2], cls_lensed_full[2:3000, 2], rtol=1e-6, atol=1e-18)
@@ -1128,6 +1129,21 @@ class CambTest(unittest.TestCase):
         np.testing.assert_allclose(cls[2:, 0:2], cls2[2:, 0:2], rtol=1e-4)
         np.testing.assert_allclose(cls2[1, 0], 1.303942e-10, rtol=3e-3)
         self.assertAlmostEqual(cls[1, 0], 0)
+
+    def testLensingTemplateTailPhase(self):
+        # Low omch2 moves the acoustic peaks by ~5% relative to the Planck 2018 high-L template. Unless the template
+        # is shifted by the peak-scale ratio, the TE tail above max_l jumps and the short-range lensing correlation
+        # rings into the top output L; the full-range result is insensitive to that step.
+        pars = def_set_params(H0=67, ombh2=0.0226, omch2=0.08, As=2.1e-9, ns=0.96, lmax=2800, lens_potential_accuracy=1)
+        data = camb.get_results(pars)
+        self.assertAlmostEqual(data.scale, 1.0528, places=3)
+        clpp = data.get_lens_potential_cls()[:, 0]
+        fast = data.get_lensed_cls_with_spectrum(clpp, lmax=2800, lensing_method=camb.lensing_method_curv_corr)
+        full = data.get_lensed_cls_with_spectrum(clpp, lmax=2800, lensing_method=camb.lensing_method_curv_corr_full)
+        ell = np.arange(2000, 2801)
+        te_diff = np.abs(fast[ell, 3] - full[ell, 3]) / np.sqrt(full[ell, 0] * full[ell, 1])
+        self.assertLess(np.max(te_diff), 5e-4)
+        np.testing.assert_allclose(fast[ell, 1], full[ell, 1], rtol=3e-4)
 
     def testSave(self):
         pars = def_set_params(
