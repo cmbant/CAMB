@@ -2792,7 +2792,7 @@
         end if
 
         if (y1 == 0._dl .or. (K == 1 .and. nu-real(l,dl) <= 112._dl .and. &
-            (audit_variant == 5 .or. audit_variant == 6 .or. audit_variant == 7 .or. audit_variant == 8 .or. audit_variant == 9))) &
+            (audit_variant == 5 .or. audit_variant == 6 .or. audit_variant == 7 .or. audit_variant == 8 .or. audit_variant == 9 .or. audit_variant == 10))) &
             y1 = u_olver(l, K, nu, chi)
 
         phi = y1/sh

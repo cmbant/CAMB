@@ -4,7 +4,7 @@
     ! A false ok means that the caller must use its existing evaluator.
     use precision, only: dl
     use constants, only: const_pi
-    use MathUtils, only: airy_ai_fast, airy_ai_reference
+    use MathUtils, only: airy_ai_reference
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     implicit none
     private
@@ -412,9 +412,7 @@
     integer :: j
     real(dl), parameter :: coef(0:6) = [1._dl, 5._dl/72, 385._dl/10368, 85085._dl/2239488, &
         37182145._dl/644972544, 5391411025._dl/46438023168._dl, 5849680962125._dl/20061226008576._dl]
-    if (x >= -12._dl .and. x < 2.09_dl) then
-        ai = airy_ai_fast(x)
-    else if (x >= 2.09_dl .and. x < 10._dl) then
+    if (x >= -12._dl .and. x < 10._dl) then
         ai = airy_ai_reference(x)
     else if (x > 0._dl) then
         if (action > 745._dl) then

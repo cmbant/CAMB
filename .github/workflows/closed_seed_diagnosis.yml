@@ -50,7 +50,7 @@ jobs:
           tr=r.get_cmb_transfer_data()
           np.savez_compressed(Path(os.environ["RUNNER_TEMP"])/f"v{v}.npz",total=s["total"],lens=r.get_lens_potential_cls(lmax=int(os.environ["LMAX"])),delta=tr.delta_p_l_k,L=tr.L,q=tr.q)
           PY
-          for v in 0 1 3 4 5 8 9; do
+          for v in 0 1 3 8 9 10 12; do
             CAMB_AUDIT_VARIANT="$v" PYTHONPATH="$PWD" python "$RUNNER_TEMP/audit.py"
           done
           python - <<'PY'
@@ -60,7 +60,7 @@ jobs:
           t=Path(os.environ["RUNNER_TEMP"])
           for refv in (3,9):
               ref=np.load(t/f"v{refv}.npz")
-              for v in (0,1,3,4,5,8,9):
+              for v in (0,1,3,8,9,10,12):
                   if v==refv: continue
                   a=np.load(t/f"v{v}.npz")
                   for k in ("total","lens","delta"):
