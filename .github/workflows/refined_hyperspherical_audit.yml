@@ -1,36 +1,13 @@
-name: Refined hyperspherical audit (temporary)
+name: Closed gate reference comparison
 on:
   push:
     branches: [test-refined-hyperspherical-audit]
 permissions:
   contents: read
 jobs:
-  format:
+  compare:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.10"
-      - run: python -m pip install pre-commit
-      - name: Format candidate and verify hooks
-        run: |
-          files="fortran/hyperspherical_bessels_refined.f90 fortran/hyperspherical_bessels_olver.f90 fortran/tests/phi_olver_gate_validation.f90 fortran/tests/generate_refined_airy.py camb/tests/mathutils_test.py"
-          pre-commit run --files $files
-      - name: Report formatted source
-        if: always()
-        run: |
-          python - <<'PY'
-          import base64
-          from pathlib import Path
-          for p in ["fortran/hyperspherical_bessels_refined.f90", "fortran/tests/generate_refined_airy.py", "camb/tests/mathutils_test.py"]:
-              data = base64.b64encode(Path(p).read_bytes()).decode("ascii")
-              for i in range(0, len(data), 2000):
-                  print(f"FORMATFILE|{p}|{i//2000}|{data[i:i+2000]}")
-          PY
-  spectra:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
         with:
@@ -39,68 +16,86 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.10"
-      - name: Build candidate and run focused tests
-        run: |
-          python -m pip install -e .
-          OMP_NUM_THREADS=1 python -m unittest camb.tests.mathutils_test.MathutilsTest.test_hyperspherical_refined_exact_representations camb.tests.mathutils_test.MathutilsTest.test_hyperspherical_corrected_airy camb.tests.mathutils_test.MathutilsTest.test_hyperspherical_refined_closed_zeros camb.tests.mathutils_test.MathutilsTest.test_hyperspherical_closed_gate_continuity
-      - name: Build unmodified baseline
-        run: |
-          git worktree add --detach "$RUNNER_TEMP/camb-baseline" 3d524fece061bd88e3b2786312bfe99391826fc6
-          cd "$RUNNER_TEMP/camb-baseline"
-          git submodule update --init --recursive
-          python -m pip install -e .
-      - name: Compare spectra and transfer functions
+      - name: Build four variants and compare
         env:
           OMP_NUM_THREADS: "1"
         run: |
           cat > "$RUNNER_TEMP/compare.py" <<'PY'
-          import time
-          import os
+          import os, time
+          from pathlib import Path
           import numpy as np
           import camb
-          from pathlib import Path
-          out = Path(os.environ["AUDIT_OUT"])
-          out.mkdir(exist_ok=True)
-          for omk in (-0.05, -0.01, 0., 0.01, 0.05):
-              p = camb.CAMBparams()
-              p.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, omk=omk, tau=0.06)
-              p.InitPower.set_params(As=2.1e-9, ns=0.965)
-              p.set_for_lmax(1200, lens_potential_accuracy=1)
-              p.WantTransfer = True
-              start = time.perf_counter()
-              r = camb.get_results(p)
-              elapsed = time.perf_counter() - start
-              spectra = r.get_cmb_power_spectra(params=None, lmax=1200, CMB_unit="muK")
-              transfer = r.get_cmb_transfer_data()
-              arrays = dict(total=spectra["total"], unlensed=spectra["unlensed_scalar"], lens=r.get_lens_potential_cls(lmax=1200), delta=transfer.delta_p_l_k, L=transfer.L, q=transfer.q, elapsed=elapsed)
-              np.savez_compressed(out / f"{omk:+.2f}.npz", **arrays)
-              print(f"SPECTRA {omk:+.2f} {elapsed:.3f}s", flush=True)
+          print("IMPORT", camb.__file__, flush=True)
+          p = camb.CAMBparams()
+          p.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, omk=-0.05, tau=0.06)
+          p.InitPower.set_params(As=2.1e-9, ns=0.965)
+          p.set_for_lmax(1200, lens_potential_accuracy=1)
+          p.WantTransfer = True
+          for boost in (1, 2, 4):
+              p.Accuracy.IntAccuracyBoost = boost
+              start=time.perf_counter()
+              r=camb.get_results(p)
+              elapsed=time.perf_counter()-start
+              spectra=r.get_cmb_power_spectra(lmax=1200, CMB_unit="muK")
+              tr=r.get_cmb_transfer_data()
+              np.savez_compressed(Path(os.environ["RUNNER_TEMP"])/f'{os.environ["VARIANT"]}-{boost}.npz', total=spectra["total"], unlensed=spectra["unlensed_scalar"], lens=r.get_lens_potential_cls(lmax=1200), delta=tr.delta_p_l_k,L=tr.L,q=tr.q)
+              print("RUNTIME",os.environ["VARIANT"],boost,elapsed,flush=True)
           PY
-          # Run each isolated source tree in its own interpreter.
-          (cd "$RUNNER_TEMP/camb-baseline"; PYTHONPATH="$PWD" AUDIT_OUT="$RUNNER_TEMP/base-out" python "$RUNNER_TEMP/compare.py")
-          PYTHONPATH="$PWD" AUDIT_OUT="$RUNNER_TEMP/candidate-out" python "$RUNNER_TEMP/compare.py"
+          for spec in baseline:3d524fece061bd88e3b2786312bfe99391826fc6 safe:a3b2d13d01a86fd2effb21734efb5e1c3c0a4873 gate:6eb9672d6f1a2b17f97cb8b773c0466a1321029c rec:6eb9672d6f1a2b17f97cb8b773c0466a1321029c; do
+            name=${spec%%:*}
+            sha=${spec#*:}
+            git worktree add --detach "$RUNNER_TEMP/$name" "$sha"
+            (
+              cd "$RUNNER_TEMP/$name"
+              git submodule update --init --recursive
+              if [ "$name" = rec ]; then
+                python - <<'PY'
+          from pathlib import Path
+          p=Path("fortran/hyperspherical_bessels_olver.f90")
+          s=p.read_text()
+          old="    sin_k = curved_radius(K, achi)\n    val = olver_reduced"
+          new="""    sin_k = curved_radius(K, achi)
+              if (K == 1 .and. nu-real(l,dl) <= 112._dl) then
+                  val = symm*phi_recurs(l,K,nu,achi)
+                  if (reduced) val = val*sin_k
+                  return
+              end if
+              val = olver_reduced"""
+          assert s.count(old)==1
+          p.write_text(s.replace(old,new))
+          PY
+              fi
+              python -m pip install -e .
+              VARIANT="$name" PYTHONPATH="$PWD" python "$RUNNER_TEMP/compare.py"
+            )
+          done
           python - <<'PY'
           import os
           from pathlib import Path
           import numpy as np
           t=Path(os.environ["RUNNER_TEMP"])
-          for p in sorted((t/"base-out").glob("*.npz")):
-              a=np.load(p); b=np.load(t/"candidate-out"/p.name)
-              print("AUDIT",p.name,"seconds",float(a["elapsed"]),float(b["elapsed"]))
-              for name in ("total","unlensed","lens","delta"):
-                  x=a[name]; y=b[name]
-                  if x.shape != y.shape:
-                      print(name,"shape mismatch",x.shape,y.shape); continue
-                  if not np.isfinite(y).all(): raise RuntimeError("nonfinite "+name)
-                  if name == "delta" and (not np.array_equal(a["L"],b["L"]) or not np.array_equal(a["q"],b["q"])):
-                      print(name,"grid mismatch"); continue
-                  if name == "delta":
-                      scale=np.maximum(np.max(np.abs(x),axis=(1,2),keepdims=True),1e-300)
-                  else:
-                      scale=np.maximum(np.max(np.abs(x[2:]),axis=0,keepdims=True),1e-300)
-                  e=np.max(np.abs(x-y)/scale,axis=tuple(range(x.ndim-1))) if name!="delta" else np.max(np.abs(x-y)/scale,axis=(1,2))
-                  print(name,"max normalized",e.tolist())
-                  if name != "delta":
-                      local=np.maximum(np.abs(x),1e-5*scale)
-                      print(name,"max local-relative",np.max(np.abs(x-y)/local,axis=0).tolist())
+          for boost in (1,2,4):
+              ref=np.load(t/f"rec-{boost}.npz")
+              for v in ("baseline","safe","gate"):
+                  a=np.load(t/f"{v}-{boost}.npz")
+                  for k in ("total","unlensed","lens","delta"):
+                      x=ref[k]; y=a[k]
+                      if x.shape!=y.shape or (k=="delta" and (not np.array_equal(ref["L"],a["L"]) or not np.array_equal(ref["q"],a["q"]))):
+                          print("GRID_MISMATCH",v,boost,k); continue
+                      axes=(1,2) if k=="delta" else (0,)
+                      scale=np.maximum(np.max(np.abs(x),axis=axes,keepdims=True),1e-300)
+                      err=np.abs(x-y)/scale
+                      idx=np.unravel_index(np.argmax(err),err.shape)
+                      print("REFERENCE_ERROR",v,boost,k,np.max(err,axis=axes).tolist(),"worst",idx,"ref",float(x[idx]),"candidate",float(y[idx]))
+                      if k=="delta":
+                          i,j,n=idx
+                          print("WORST_MODE",v,boost,"source",i,"l",int(ref["L"][j]),"q",float(ref["q"][n]))
+              if boost!=4:
+                  a=np.load(t/f"rec-{boost}.npz"); b=np.load(t/"rec-4.npz")
+                  for k in ("total","lens","delta"):
+                      x=b[k]; y=a[k]
+                      if x.shape!=y.shape or (k=="delta" and (not np.array_equal(b["L"],a["L"]) or not np.array_equal(b["q"],a["q"]))): continue
+                      axes=(1,2) if k=="delta" else (0,)
+                      scale=np.maximum(np.max(np.abs(x),axis=axes,keepdims=True),1e-300)
+                      print("REF_CONVERGENCE",boost,k,np.max(np.abs(x-y)/scale,axis=axes).tolist())
           PY
