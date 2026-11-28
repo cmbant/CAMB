@@ -196,8 +196,8 @@
     ! n<=24 and l>=30 in the caller, so no long recurrence or gamma calls.
     ! With a=l+1, N**2=sqrt(pi)*Gamma(a)*n! /
     ! [2*(a+n)*Gamma(a+1/2)*(2*a)_n].  The gamma ratio is
-    ! a**(-1/2)*(1+1/(8*a)+1/(128*a**2)-5/(1024*a**3)-21/(32768*a**4)+...),
-    ! relative error < 1e-10 for a>=31.
+    ! a**(-1/2)*(1+1/(8*a)+1/(128*a**2)+O(a**(-3))), relative error < 2e-7
+    ! for a>=31.  Add -5/(1024*a**3)-21/(32768*a**4) for < 1e-10 if needed.
     integer, intent(in) :: l, n
     real(dl), intent(in) :: chi, sin_k
     real(dl) :: a, x, prev, p, next, norm2, ri
@@ -217,7 +217,7 @@
     end do
 
     norm2 = norm2*sqrt(const_pi)/(2._dl*(a + n)*sqrt(a)) &
-        *(1._dl + (1._dl/8._dl + (1._dl/128._dl - (5._dl/1024._dl + 21._dl/(32768._dl*a))/a)/a)/a)
+        *(1._dl + (1._dl/8._dl + 1._dl/(128._dl*a))/a)
     u = sqrt(norm2)*sin_k**(l + 1)*p
 
     end function closed_endpoint_u
