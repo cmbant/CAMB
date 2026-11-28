@@ -32,7 +32,8 @@ jobs:
           p.set_for_lmax(1200, lens_potential_accuracy=1)
           p.WantTransfer = True
           for boost in (1, 2, 4):
-              p.Accuracy.IntAccuracyBoost = boost
+              p.Accuracy.NonFlatIntAccuracyBoost = boost
+              assert p.Accuracy.NonFlatIntAccuracyBoost == boost
               start=time.perf_counter()
               r=camb.get_results(p)
               elapsed=time.perf_counter()-start
