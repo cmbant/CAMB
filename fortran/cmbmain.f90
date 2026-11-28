@@ -55,7 +55,7 @@
     use results
     use Interpolation, only: cubic_spline_second_derivs
     use GaugeInterface
-    use HypersphericalBesselOlver, only: u_olver, phi_olver
+    use HypersphericalBesselOlver, only: u_olver, phi_olver, use_closed_refined_mode
     use SpherBessels
     use MassiveNu
     use InitialPower
@@ -2791,7 +2791,10 @@
             ch = cosh(chi)
         end if
 
-        if (y1 == 0._dl) y1 = u_olver(l, K, nu, chi)
+        ! The second seed is evaluated afresh. For the refined closed modes,
+        ! also refresh the first seed rather than mixing propagated and mapped
+        ! values across source-range boundaries.
+        if (y1 == 0._dl .or. use_closed_refined_mode(l, K, nu)) y1 = u_olver(l, K, nu, chi)
 
         phi = y1/sh
         phi_vals(1) = phi
@@ -3064,7 +3067,8 @@
 
     dchimax = dchimax/IntAccuracyBoost
 
-    if (y1 == 0._dl) y1 = u_olver(l, K, nu, chi)
+    ! As in the scalar integrator, use consistent seeds for refined closed modes.
+    if (y1 == 0._dl .or. use_closed_refined_mode(l, K, nu)) y1 = u_olver(l, K, nu, chi)
     phi = y1/sh
     out = 0
     phi_vals(1) = phi

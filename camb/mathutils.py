@@ -152,7 +152,8 @@ def phi_olver(L, K, nu, chi):
 
     Fast with peak-relative accuracy around 1e-4; use :func:`phi_recurs` for a slower high-accuracy reference.
     For ``K=0`` this returns the spherical Bessel function :math:`j_L(\nu\chi)`.
-    Falls back to the recursive result where the Olver approximation may be unreliable.
+    Uses checked exact representations and a corrected Airy map where the leading Olver map
+    may be unreliable, retaining recurrence as a safety fallback.
 
     :param L: multipole index
     :param K: dimensionless curvature sign, one of -1, 0, 1
