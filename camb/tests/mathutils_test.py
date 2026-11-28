@@ -112,8 +112,9 @@ class MathutilsTest(unittest.TestCase):
         for ell, curvature, nu in (
             (100, -1, 7.0),
             (3000, -1, 7.0),
-            (150, 1, 160.0),
-            (3000, 1, 3010.0),
+            (150, 1, 176.0),
+            (3000, 1, 3026.0),
+            (10000, 1, 10026.0),
         ):
             beta = nu / (ell + 0.5)
             kappa = curvature / beta**2
@@ -124,19 +125,24 @@ class MathutilsTest(unittest.TestCase):
             self.assert_hyperspherical_peak_relative(ell, curvature, nu, chi)
 
         # Exact normalized Gegenbauer reference, including zeros and folding.
-        for ell in (150, 500, 3000):
-            for n in (0, 1, 7, 8):
+        for ell in (30, 50, 149, 150, 500, 3000, 10000):
+            for n in range(25):
                 a = ell + 1
                 nu = float(a + n)
-                chi = np.pi / 2 + np.linspace(-4, 4, 97) * np.sqrt((n + 1) / a)
+                chi = np.unique(
+                    np.clip(
+                        np.r_[np.linspace(0, np.pi, 97), np.pi / 2 + np.linspace(-4, 4, 97) * np.sqrt((n + 1) / a)],
+                        0,
+                        np.pi,
+                    )
+                )
                 log_norm = ell * np.log(2) + gammaln(a) + (gammaln(n + 1) - np.log(nu) - gammaln(n + 2 * a)) / 2
                 ref = np.exp(log_norm) * np.sin(chi) ** ell * eval_gegenbauer(n, a, np.cos(chi))
                 actual = phi_olver(ell, 1, nu, chi)
-                np.testing.assert_allclose((actual - ref) / np.max(np.abs(ref)), 0, atol=1e-7)
+                np.testing.assert_allclose((actual - ref) / np.max(np.abs(ref)), 0, atol=1e-6)
 
-            # Degree 9 uses the ordinary Airy fallback, immediately above
-            # the direct-polynomial gate.
-            nu = float(ell + 10)
+            # Degree 25 is immediately above the direct-polynomial gate.
+            nu = float(ell + 26)
             chi = np.linspace(max(0.01, np.pi / 2 - 8 / np.sqrt(ell)), np.pi / 2, 97)
             self.assert_hyperspherical_peak_relative(ell, 1, nu, chi)
 

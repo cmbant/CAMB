@@ -8,7 +8,7 @@
     use FlatBessels, only: BJL
     use SpherBessels, only: phi_recurs
     use HypersphericalBesselUtils, only: normalize_chi, turning_point, curved_radius, qintegral_exact, CACHE_EPS
-    use HypersphericalBesselAiry, only: airy_u_normalized, airy_ok
+    use HypersphericalBesselAiry, only: airy_u_normalized
     use HypersphericalBesselSmallNu, only: open_smallnu_u
     implicit none
     private
@@ -27,7 +27,8 @@
     real(dl), parameter :: SMALLCHI_GATE_METRIC = 5.0e-2_dl
     integer, parameter :: AIRY_FALLBACK_OPEN_L_MIN = 100
     integer, parameter :: AIRY_FALLBACK_CLOSED_L_MIN = 150
-    integer, parameter :: CLOSED_DIRECT_MAX_DEGREE = 8
+    integer, parameter :: CLOSED_DIRECT_L_MIN = 30
+    integer, parameter :: CLOSED_DIRECT_MAX_DEGREE = 24
 
     public :: phi_olver, u_olver
 
@@ -102,6 +103,17 @@
     real(dl), intent(in) :: nu, achi, sin_k, symm
     real(dl) :: u
     real(dl) :: alpha_gate, z, amp, j_l
+    integer :: n
+
+    ! The finite-spectrum polynomial is cheap and accurate across the
+    ! fundamental interval; bypass both leading maps and Airy for small n.
+    if (K == 1 .and. l >= CLOSED_DIRECT_L_MIN) then
+        n = nint(nu) - l - 1
+        if (n >= 0 .and. n <= CLOSED_DIRECT_MAX_DEGREE) then
+            u = symm*closed_endpoint_u(l, n, achi, sin_k)
+            return
+        end if
+    end if
 
     alpha_gate = nu/real(l, dl)
 
@@ -158,21 +170,9 @@
     real(dl), intent(in) :: nu, achi, sin_k, symm
     real(dl) :: u
     logical :: ok
-    integer :: n
 
-    ! Near the closed spectral endpoint the polynomial degree is small even
-    ! at large l.  Evaluate the normalized solution directly, before Airy
-    ! (whose two turning points coalesce) or the O(l) Miller normalization.
-    if (K == 1 .and. l >= AIRY_FALLBACK_CLOSED_L_MIN) then
-        n = nint(nu) - l - 1
-        if (n >= 0 .and. n <= CLOSED_DIRECT_MAX_DEGREE) then
-            u = symm*closed_endpoint_u(l, n, achi, sin_k)
-            return
-        end if
-    end if
-
-    if (use_airy_fallback(l, K, nu, achi)) then
-        u = airy_u_normalized(l, K, nu, achi, ok)
+    if (use_airy_fallback(l, K)) then
+        u = airy_u_normalized(l, K, nu, achi, ok, sin_k_in=sin_k)
         if (ok) then
             u = symm*u
             return
@@ -193,7 +193,7 @@
 
     pure real(dl) function closed_endpoint_u(l, n, chi, sin_k) result(u)
     ! u = N sin(chi)**(l + 1) C_n^(l + 1)(cos chi), n = nu-l-1.
-    ! n<=8 and l>=150 in the caller, so no long recurrence or gamma calls.
+    ! n<=24 and l>=30 in the caller, so no long recurrence or gamma calls.
     ! With a=l+1, N**2=sqrt(pi)*Gamma(a)*n! /
     ! [2*(a+n)*Gamma(a+1/2)*(2*a)_n].  The gamma ratio is
     ! a**(-1/2)*(1+1/(8*a)+1/(128*a**2)+O(a**(-3))).
@@ -221,13 +221,12 @@
 
     end function closed_endpoint_u
 
-    logical function use_airy_fallback(l, K, nu, achi) result(use_airy)
+    logical function use_airy_fallback(l, K) result(use_airy)
     ! Second-order Olver/Airy patch: validated only well away from low l.
     integer, intent(in) :: l, K
-    real(dl), intent(in) :: nu, achi
+    ! airy_u_normalized checks the remaining mode/coordinate gates.
 
     use_airy = .false.
-    if (.not. airy_ok(l, K, nu, achi)) return
 
     select case (K)
     case (-1)

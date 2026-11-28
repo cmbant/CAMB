@@ -828,9 +828,10 @@ is still applied at large \(\nu/l\): low-\(l\) and endpoint cases showed that
 an unconditional \(\nu/l\ge3\) pointwise shortcut is too broad.
 \end{enumerate}
 Here ``fallback'' does not necessarily mean immediate recurrence.  At high
-\(l\), closed modes with \(l\ge150\) and \(n=\nu-l-1\le8\) first use the
-direct normalized Gegenbauer formula described below.  Otherwise the code
-tries the second-order Airy one-point approximation
+\(l\), closed modes with \(l\ge30\) and \(n=\nu-l-1\le24\) use the
+direct normalized Gegenbauer formula described below, before either leading
+map is attempted.  Otherwise, in the fallback region, the code tries the
+second-order Airy one-point approximation
 derived in Appendix~\ref{app:second-order-airy}: \(l\ge100\) in open models
 and \(l\ge150\) in closed models, subject to the Airy-specific gates in that
 appendix.  If this Airy branch is outside its calibrated range, open models
@@ -1103,8 +1104,8 @@ When \(G\) is safely non-zero, the arbitrary Miller amplitude is rescaled to \(\
 \end{equation}
 with the derivative recurrence obtained by differentiating this relation.  This provides a stable top boundary condition for the Miller recurrence in a finite closed spectrum.  In \code{phi_recurs} this supplies only the Miller start in
 \eqref{eq:gegenbauer-direct-start}; the independent recurrence reference is
-unchanged.  In the high-\(l\) Olver fallback, however, \code{closed_endpoint_u}
-returns the normalized Gegenbauer solution directly for \(n\le8\).
+unchanged.  For closed modes of small degree, however, \code{closed_endpoint_u}
+returns the normalized Gegenbauer solution directly for \(l\ge30\), \(n\le24\).
 Writing \(a=l+1\), its normalization is
 \begin{equation}
  N_{l\nu}^2 =
@@ -1119,7 +1120,7 @@ gamma ratio is evaluated as
  = a^{-1/2}\left(1+\frac{1}{8a}+\frac{1}{128a^2}
  +\order(a^{-3})\right).
 \]
-At \(l\ge150\) the omitted normalization term is far below the Bessel
+At \(l\ge30\) the omitted normalization term is below \(10^{-6}\) of the peak, well below the Bessel
 accuracy target.  The reduced solution is \(u=N_{l\nu}\sin^{l+1}\chi\,C_n^a(x)\);
 the work scales with the small degree \(n\), not the angular order \(l\).
 The branch retains the exact folding parity.  A uniform parabolic-cylinder
@@ -1666,9 +1667,22 @@ Here, with \(\kappa=K/\beta^2\),
  B_0'(0)=\frac{(1+\kappa)(8\kappa^2-9\kappa+8)}{900(1-\kappa)^2}.
 \end{equation}
 For \(K=0\) the curvature term in the square brackets vanishes and the
-second-order term reduces to \(-1/(225\lambda^2)\).  This normalization is evaluated in logarithmic form in the implementation so that
-large \(l\), very small tails, and closed-space products do not overflow or
-underflow prematurely.
+second-order term reduces to \(-1/(225\lambda^2)\).
+Combining the shifted Stirling expansion of the origin gamma ratios with
+\(\lambda q_0\) and \(\log R\) cancels the large logarithmic terms and the
+first inverse-order correction.  The implemented normalization is
+\[
+ \mathcal N\simeq \sqrt{\frac{\pi}{\nu}}\,\lambda^{-1/3}
+ \left[1-\frac{B_0'(0)}{2\lambda^2}+\delta_K\right],
+ \qquad
+ \delta_{+1}=\frac{7}{5760}
+ \left[(\nu+\lambda)^{-3}-(\nu-\lambda)^{-3}\right],
+ \quad \delta_{0}=\delta_{-1}=0.
+\]
+The omitted open-space cubic Stirling remainder and exponential correction
+are below the numerical accuracy target in the accepted gates, as is
+linearizing the small logarithmic correction.  No gamma, logarithm,
+inverse trigonometric function or exponential is needed for the normalization.
 
 \subsection{How the optimized implementation evaluates the second-order terms}
 
@@ -1678,11 +1692,12 @@ construction of \(B_0\) and \(A_1\).
 
 First it folds closed-space \(\chi\) into the fundamental interval, keeping the
 exact parity sign \(\sigma\).  It then forms
-\(\lambda=l+1/2\), \(\beta=\nu/\lambda\), the turning point
-\(\chi_t\), the action coordinate \(\zeta\), the local value \(q(\chi)\), and
-the Airy argument \(X=\lambda^{2/3}\zeta\).  The Liouville amplitude is
-\((\zeta/q)^{1/4}\), with the turning-point limit used when either quantity is
-too small for the direct ratio.
+\(\lambda=l+1/2\), \(\beta=\nu/\lambda\), the action coordinate
+\(\zeta\) and the Airy argument \(X=\lambda^{2/3}\zeta\).
+The sign of \(1-\beta^2\SK^2\) identifies the side of the turn without
+computing \(\chi_t\).  The Liouville amplitude is \((\zeta/q)^{1/4}\);
+near the turning point the ratio is formed directly from the regular series
+below.  The already available \(\SK(\chi)\) is reused.
 
 The second-order coefficient calculation is analytic.  Inserting
 \(q=1/\SK^2-\beta^2\) and \(r=-1/(4\SK^2)\) into
@@ -1716,7 +1731,12 @@ Near the turn, let \(c=[(1-\kappa)/2]^{2/3}\) and
  F(y)=\sum_{j=0}^{\infty}
  \frac{3(1+\kappa+\cdots+\kappa^j)}{2j+3}y^j.
 \]
-Then \(\zeta=cyF^{2/3}\), and
+Then \(\zeta=cyF^{2/3}\).  In the local region the code keeps terms through
+\(j=5\) in \(F\), evaluated using \(h_j=\sum_{i=0}^j y^{j-i}(\kappa y)^i\)
+and \(h_j=(1+\kappa)y h_{j-1}-\kappa y^2 h_{j-2}\).
+This avoids cancellation and extra transcendental action evaluations, and
+gives \(\zeta/q=cF^{2/3}\SK^2/(1-K\SK^2)\) directly, including at the turn.
+For the coefficient,
 \[
  B_0=\frac{F^{-4/3}}{8(1-\kappa)\sqrt c}\,
  \frac{[5/3-(1+\kappa)y]F-5/3}{y^2}.
@@ -1741,7 +1761,7 @@ peak-relative error budget, rather than unnecessary special-function precision.
 
 The final value is then obtained by evaluating \(\Ai(X)\) and \(\Ai'(X)\),
 forming the bracket in \eqref{eq:app-second-order-u}, multiplying by the
-logarithmic normalization \(\mathcal N\) and the Liouville amplitude, and
+normalization \(\mathcal N\) and the Liouville amplitude, and
 dividing by \(\SK(\chi)\) if the unreduced \(\phi_l^\nu\) is requested.  The
 acceptance gates are deliberately simple.  The branch is considered only for
 \(l\ge10\), positive \(\nu\), and nonzero \(\chi\).  Flat models then pass this

@@ -410,6 +410,8 @@
         return
     end if
     if (chi <= 1.0e-12_dl) return
+    ! Direct closed Gegenbauer modes bypass the leading-map gate.
+    if (k == 1 .and. l >= 30 .and. nint(nu) - l - 1 <= 24) return
 
     alpha_gate = nu/real(l, dl)
     if (use_smallchi_map_test(l, nu, chi, alpha_gate)) return
