@@ -22,8 +22,9 @@ CAMB supplies the parity factor. The regular solution $u=s\Phi_\ell^\nu$ obeys
  \label{eq:radial}
 \end{equation}
 The new routine \texttt{refined\_u} accelerates the existing pointwise Olver
-fallback. It returns $u$ directly; the flat, near-flat and leading Olver paths,
-coordinate folding, and source integration are unchanged.
+fallback. It returns $u$ directly, preserving the flat and leading Olver
+formulas and coordinate folding. In selected closed modes the fallback
+takes precedence over both radial Olver switches; see Section~\ref{sec:gate}.
 
 \section{Exact representations in the degenerate limits}
 \paragraph{Open geometry.}
@@ -166,9 +167,23 @@ Omit $H_2$ when using only $B_1$; $a_0=\log(2/\sqrt{\beta^2-K})-\beta T_K^{-1}(1
 where $T_{-1}^{-1}=\arctan$, $T_1^{-1}=\atanh$.
 The code cancels the large gamma and action terms analytically and retains
 small Stirling remainders. It works in the scaled coordinate
-$\tau=\lambda^{2/3}\zeta$ and preserves the corrected action in the Airy tails.
+$\tau=\lambda^{2/3}\zeta$, uses CAMB's reference Ai in the central region,
+and preserves the corrected action in the Airy tails.
 
-\section{Selection, error control and validation}
+\section{Selection and consistent seeds}\label{sec:gate}
+In closed geometry the old gate $\chi/[2(\nu-\ell)]>0.007$ could switch
+between approximations close to a turning point. Its maximum on the folded
+domain is $\pi/[4(\nu-\ell)]$. When this maximum exceeds $0.007$, use the
+refined evaluator for the whole mode, also bypassing the small-$\chi$ map.
+For $\ell\leq8$ in these modes, exact recurrence is inexpensive and preferred.
+The other leading Olver and open-space gates remain unchanged.
+For seeds separated by $\Delta\chi$, errors $e_0,e_1$ imply a slope error
+$(e_1-e_0)/\Delta\chi$. Refresh both seeds at source-range boundaries in
+these modes rather than mixing a propagated first seed with a fresh second
+seed. This affects scalar and tensor Numerov initialization, not the
+integration step-size or source quadrature rules.
+
+\paragraph{Error control.}
 A useful common expansion parameter is
 $\mu=\lambda(1-h)/(1+|h|)^{3/2}$: it approaches $\lambda$ near flat space,
 $\nu$ for small open $\nu$, and $(\nu-\lambda)/\sqrt2$ near the closed
@@ -186,28 +201,25 @@ roundoff screens are heuristic). The Airy order thresholds and quadrature
 convergence criterion are validated choices, not rigorous continuous-domain
 forward-error certificates. Near zeros the relevant accuracy is absolute or
 peak-normalized, not relative. No new hyperspherical recurrence is used.
-On a retained 64,323-point positive-frequency stress grid (both curvature
-signs and flat space), the complete dispatcher had no errors above
-$2\times10^{-4}$; the new paths directly accepted 20,678 of 20,879 curved
-fallback calls with $\ell>2$. An independent turning-point grid and a
-compact-domain boundary grid, the latter extending to $\ell\simeq10^6$,
-also passed the corresponding peak/local-scale tests. In a standalone
-Fortran harness with the actual CAMB numerical routines, the median
-CPU time per point was 2.35 versus 0.52 microseconds (original versus
-candidate, identical GNU Fortran optimization flags). These are synthetic
-pointwise timings, not cosmological speedups. The absolute error floors also
-avoid 266 rejected polynomial evaluations in 3,024 targeted closed-zero tests.
+On 64,323 retained positive-frequency stress points the complete dispatcher
+has no errors above $2\times10^{-4}$. For 10,883 points in the selected
+closed modes, the maximum peak-normalized error falls from
+$1.03\times10^{-4}$ (previous fallback-only revision) to $3.83\times10^{-7}$.
+At $\ell=37,\nu=74$, across the former radial switch at $\chi=0.518$,
+the error in the reduced-function difference over $\Delta\chi=10^{-4}$
+falls from $1.75\times10^{-7}$ to $7.68\times10^{-13}$.
 
-A full single-thread CAMB comparison against the matching baseline at
-$\ell_{\max}=1200$ and five values of $\Omega_K$ between $-0.05$ and $0.05$
-found a largest
-per-spectrum peak-normalized difference of $4.61\times10^{-5}$, and largest
-source-normalized scalar transfer difference of $3.98\times10^{-5}$.
-Flat results were identical; whole-model runtimes were essentially unchanged.
-A mode-wide closed gate was also tested: although it suppressed the old radial
-switch discontinuity, it changed the strongly closed transfer data by up to
-$2.66\times10^{-3}$ of the source maximum, so it is not included here.
-These comparisons establish agreement with the baseline, not absolute
-cosmological accuracy. Retain the existing leading map and safety paths
-pending higher-accuracy cosmological reference tests.
+Full CAMB comparisons against exact recurrence substituted in the affected
+closed modes distinguish corrections to the old result from new errors.
+At $\Omega_K=-0.05$, $\ell_{\max}=1200$, default integration accuracy,
+the revised evaluator with consistent seeds reduces the largest
+source-normalized temperature transfer discrepancy from $2.65\times10^{-3}$
+to $2.63\times10^{-7}$, and the TT peak-normalized discrepancy from
+$2.79\times10^{-4}$ to $5.65\times10^{-8}$, against recurrence with the
+same seed handling. In particular, exact recurrence at the newly selected
+points reproduces the large change at $\ell=37,\nu=74$.
+These tests isolate the Bessel evaluator; they do not certify convergence
+of the remaining cosmological integration approximations.
+Synthetic pointwise benchmarks show substantial speedup, not a comparable
+whole-model speedup. The existing safety paths remain available.
 \end{document}

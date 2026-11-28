@@ -29,9 +29,20 @@
     integer, parameter :: AIRY_FALLBACK_OPEN_L_MIN = 100
     integer, parameter :: AIRY_FALLBACK_CLOSED_L_MIN = 150
 
-    public :: phi_olver, u_olver
+    public :: phi_olver, u_olver, use_closed_refined_mode
 
     contains
+
+    elemental logical function use_closed_refined_mode(l, K, nu) result(use_refined)
+    ! The maximum of the old closed radial metric on the folded domain is
+    ! pi/[4(nu-l)]. Select the evaluator for the whole mode, including small chi:
+    ! a radial switch can amplify errors in adjacent Numerov seed values.
+    integer, intent(in) :: l, K
+    real(dl), intent(in) :: nu
+
+    use_refined = K == 1 .and. nu - real(l, dl) < const_pi/(4*OLVER_GATE_CLOSED_EPS)
+
+    end function use_closed_refined_mode
 
     function phi_olver(l, K, nu, chi) result(phi)
     ! phi_l^nu(chi).  Assumes l >= 0, chi >= 0, and for K=1 an integer nu > l
@@ -77,7 +88,9 @@
         return
     end if
 
-    if (l <= 2) then
+    ! For very small closed multipoles recurrence is cheap and avoids
+    ! residual Airy approximation errors in sensitive large-angle sources.
+    if (l <= 2 .or. (l <= 8 .and. use_closed_refined_mode(l, K, nu))) then
         val = symm*phi_recurs(l, K, nu, achi)
         if (reduced) val = val*curved_radius(K, achi)
         return
@@ -108,6 +121,11 @@
         return
     end if
 
+    if (use_closed_refined_mode(l, K, nu)) then
+        u = fallback_reduced(l, K, nu, achi, sin_k, symm)
+        return
+    end if
+
     alpha_gate = nu/real(l, dl)
 
     if (use_smallchi_map(l, nu, achi, alpha_gate)) then
@@ -117,29 +135,10 @@
             return
         end if
     else
-        ! Empirical recurrence fallback for corners where the leading Olver map
-        ! is not pointwise reliable at the 1e-4 peak-normalized level.
-        ! The raw open-space approximation is accepted over the full sampled
-        ! interval when alpha ~= nu/l clears a smooth, grid-calibrated cutoff
-        ! in l. Below that cutoff, and for closed-space endpoint tails, the
-        ! accepted region is limited by the small endpoint parameter
-        !
-        !   open:   eps_peak = O(chi / (2 nu))
-        !   closed: eps_peak = O(chi / (2 (nu-l))).
-        !
-        ! Constants are grid-calibrated against phi_recurs, including low-l
-        ! cases, high-l cases to l=10000, dense turning samples, very small chi,
-        ! and open-space tails about 80 oscillations past the turning region.
-        !
-        ! Both metrics are cheap, so they are tested before open_alpha_cut,
-        ! which costs a real-exponent power.
-        if (K == 1) then
-            ! nu is an integer mode > l for K=1, so the denominator is >= 2.
-            if (achi/(2._dl*(nu - real(l, dl))) > OLVER_GATE_CLOSED_EPS) then
-                u = fallback_reduced(l, K, nu, achi, sin_k, symm)
-                return
-            end if
-        else if (K == -1) then
+        ! The remaining open-space pointwise gate is unchanged.
+        ! Below the calibrated alpha cutoff, restrict leading Olver to
+        ! chi/(2 nu) <= OLVER_GATE_OPEN_EPS.
+        if (K == -1) then
             if (achi/(2._dl*max(nu, tiny(1._dl))) > OLVER_GATE_OPEN_EPS &
                 .and. alpha_gate < open_alpha_cut(l)) then
                 u = fallback_reduced(l, K, nu, achi, sin_k, symm)
@@ -156,8 +155,8 @@
     end function olver_reduced
 
     function fallback_reduced(l, K, nu, achi, sin_k, symm) result(u)
-    ! Keep the leading Olver gates unchanged. Try the refined evaluator first,
-    ! then retain the previous approximations and phi_recurs as safety paths.
+    ! Try the refined evaluator first, then retain the previous
+    ! approximations and phi_recurs as safety paths.
     integer, intent(in) :: l, K
     real(dl), intent(in) :: nu, achi, sin_k, symm
     real(dl) :: u
