@@ -22,8 +22,12 @@ CAMB supplies the parity factor. The regular solution $u=s\Phi_\ell^\nu$ obeys
  \label{eq:radial}
 \end{equation}
 The new routine \texttt{refined\_u} accelerates the existing pointwise Olver
-fallback. It returns $u$ directly; the flat, near-flat and leading Olver paths,
-coordinate folding, and source integration are unchanged.
+fallback. It returns $u$ directly; the flat, near-flat and leading Olver
+formulas, coordinate folding, and source integration are unchanged. In closed
+geometry the old radial gate is made mode-wide: use the maximum of
+$\chi/[2(\nu-\ell)]$ on the folded domain, $\pi/[4(\nu-\ell)]$, instead
+of switching at a particular $\chi$. This avoids an artificial jump in
+adjacent Numerov seed values.
 
 \section{Exact representations in the degenerate limits}
 \paragraph{Open geometry.}
@@ -188,14 +192,15 @@ forward-error certificates. Near zeros the relevant accuracy is absolute or
 peak-normalized, not relative. No new hyperspherical recurrence is used.
 On a retained 64,323-point positive-frequency stress grid (both curvature
 signs and flat space), the complete dispatcher had no errors above
-$2\times10^{-4}$; the new paths directly accepted 20,676 of 20,879 curved
+$2\times10^{-4}$; the new paths directly accepted 20,678 of 20,879 originally selected curved
 fallback calls with $\ell>2$. An independent turning-point grid and a
 compact-domain boundary grid, the latter extending to $\ell\simeq10^6$,
 also passed the corresponding peak/local-scale tests. In a standalone
 Fortran harness with the actual CAMB numerical routines, the median
-CPU time per point was 2.28 versus 0.46 microseconds (original versus
+CPU time per point was 2.19 versus 0.44 microseconds (original versus
 candidate, identical GNU Fortran optimization flags). These are synthetic
-pointwise timings, not cosmological speedups.
+pointwise timings, not cosmological speedups. The absolute error floors also
+avoid 266 rejected polynomial evaluations in 3,024 targeted closed-zero tests.
 
 The change is deliberately limited to the pointwise fallback; a full CAMB
 spectra and transfer-function comparison is still required before replacing
