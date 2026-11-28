@@ -1,0 +1,200 @@
+\documentclass[10pt]{article}
+\usepackage[a4paper,margin=24mm]{geometry}
+\usepackage{amsmath,amssymb,booktabs}
+\usepackage[hidelinks]{hyperref}
+\newcommand{\Ai}{\operatorname{Ai}}
+\newcommand{\asinh}{\operatorname{asinh}}
+\newcommand{\atanh}{\operatorname{atanh}}
+\newcommand{\sinc}{\operatorname{sinc}}
+\title{Refined pointwise hyperspherical Bessel evaluation}
+\author{}
+\date{}
+\begin{document}
+\maketitle
+\vspace{-2em}
+For $K=-1,+1$ let $s=S_K(\chi)$ be $\sinh\chi$ or $\sin\chi$, respectively,
+and $c=S'_K(\chi)$. Work on the folded closed interval $0\leq\chi\leq\pi/2$;
+CAMB supplies the parity factor. The regular solution $u=s\Phi_\ell^\nu$ obeys
+\begin{equation}
+ u''=\left[\frac{\ell(\ell+1)}{s^2}-\nu^2\right]u,
+ \quad u\sim A_\ell\chi^{\ell+1},\qquad
+ A_\ell=\frac{\prod_{j=1}^{\ell}\sqrt{\nu^2-Kj^2}}{(2\ell+1)!!}.
+ \label{eq:radial}
+\end{equation}
+The new routine \texttt{refined\_u} accelerates the existing pointwise Olver
+fallback. It returns $u$ directly; the flat, near-flat and leading Olver paths,
+coordinate folding, and source integration are unchanged.
+
+\section{Exact representations in the degenerate limits}
+\paragraph{Open geometry.}
+Set $z=e^{-2\chi}$ and substitute $u_+=e^{i\nu\chi}(1-z)^{-\ell}P(z)$
+into \eqref{eq:radial}. The resulting hypergeometric equation has the
+terminating solution
+\begin{align}
+ P(z)&={}_2F_1(-\ell,-\ell-i\nu;1-i\nu;z),\qquad
+ \delta=\sum_{j=1}^{\ell}\arctan(\nu/j),\\
+ u&=\frac{(1-z)^{-\ell}}{\nu}\operatorname{Im}\bigl[e^{i(\nu\chi-\delta)}P(z)\bigr].
+ \label{eq:jost}
+\end{align}
+The phase follows from the regular boundary condition (equivalently, from the
+successive Darboux raising operators); the outgoing amplitude is $1$ in $u_+$.
+The ratio of terms including powers of $z$ is
+\begin{equation}
+ \frac{T_{j+1}}{T_j}=z\frac{(\ell-j)(\ell-j+i\nu)}{(j+1)(j+1-i\nu)}.
+\end{equation}
+Its magnitude $q_j$ decreases with $j$. Thus, when $q_j<1$, the remaining
+sum is bounded by $|T_{j+1}|/(1-q_j)$. The implementation stores
+$T_j=a_j+i\nu b_j$ and evaluates \eqref{eq:jost} as
+\begin{equation}
+ u=(1-z)^{-\ell}\left[D\sinc(\nu D)\sum_j a_j+\cos(\nu D)\sum_j b_j\right],
+ \quad D=\chi-\delta/\nu.
+\end{equation}
+This is continuous at $\nu=0$, where $\delta/\nu=H_\ell$ is the harmonic
+number. Stable log-gamma differences and a small-$\nu$ harmonic expansion
+avoid an $O(\ell)$ phase sum. Bounds on the coefficient magnitudes and phases
+control the scaled imaginary tail; a separate roundoff screen rejects
+ill-conditioned sums. The work limit is 40 terms. In addition to limiting
+$q_0$, require $z\leq1/4$: since $q_0\geq\ell z$,
+$-\ell\log(1-z)\leq q_0/(1-z)$, bounding the external amplification.
+
+\paragraph{Closed geometry.}
+For $p=\nu-\ell-1=2m+\epsilon$ with $\epsilon\in\{0,1\}$, use the
+Gegenbauer polynomial $s^\ell C_p^{\ell+1}(c)$, expanded about $c=0$.
+In terms of $y=c^2$ and $t_0=1$,
+\begin{align}
+ \frac{t_{j+1}}{t_j}&=-y\frac{(m-j)(\ell+1+m+\epsilon+j)}
+ {(j+1)(j+\epsilon+1/2)},\\
+ u&=(-1)^m s^{\ell+1}D_0\sum_{j=0}^m t_j\times
+ \begin{cases}1,&\epsilon=0,\\ c\sqrt{2(\ell+1+m)(2m+1)},&\epsilon=1,\end{cases}\\
+ D_0^2&=\frac{1}{2\nu}\frac{\Gamma(\ell+1+m)}{\Gamma(\ell+3/2+m)}
+ \frac{\Gamma(m+1/2)}{\Gamma(m+1)}.
+\end{align}
+Half-step gamma ratios are evaluated by Stirling differences. The same
+geometric tail and cancellation tests apply; there is no recurrence in
+multipole order. In particular $p=0$ is a single normalized $s^{\ell+1}$.
+
+\paragraph{Compact open integral.}
+For low open frequencies not covered by the short Jost series, use the
+exact Mehler--Dirichlet integral (integer $\ell$)
+\begin{equation}
+ \Phi=\frac{N}{s^{\ell+1}}\int_0^\chi(c-\cosh t)^\ell\cos(\nu t)\,dt,
+ \qquad N=\prod_{j=1}^\ell\sqrt{1+\nu^2/j^2}.
+\end{equation}
+With $B=\sinh^2(\chi/2)/\ell$ and $y=\sqrt\ell\sinh(t/2)/\sinh(\chi/2)$,
+\begin{equation}
+ u=2\sqrt B\,N\tanh^\ell(\chi/2)
+ \int_0^{\sqrt\ell}\frac{(1-y^2/\ell)^\ell}{\sqrt{1+By^2}}
+ \cos\bigl(2\nu\asinh(\sqrt B\,y)\bigr)\,dy .\label{eq:compact}
+\end{equation}
+The integrand modulus is at most $e^{-y^2}$; truncating at $y=7$ costs
+at most $e^{-49}/14$ in the integral. On $\ell\geq8$, $B\leq1/4$,
+$\nu^2B\leq5.25$ and $\nu\leq4.6$, use 24- and 32-point Gauss--Legendre
+rules and reject if their absolute difference exceeds $2\times10^{-9}$.
+This convergence check is empirical, not a certified quadrature bound.
+There is no fitted tensor table. The normalization uses
+$|\Gamma(1+i\nu)|^2=\pi\nu/\sinh(\pi\nu)$ and a stable Stirling difference.
+
+\section{Explicit corrected Airy map}
+Write $\lambda=\ell+1/2$, $\beta=\nu/\lambda$, $h=K/\beta^2$,
+$q=s^{-2}-\beta^2$, $r=-1/(4s^2)$. The usual Liouville coordinate is
+$\frac23|\zeta|^{3/2}=|\int_{\chi_t}^{\chi}\sqrt{|q|}\,d\chi|$,
+with $\zeta>0$ on the evanescent side. The transformed equation is
+\begin{equation}
+ W_{\zeta\zeta}=(\lambda^2\zeta+\psi)W,\quad
+ \psi=\frac{\zeta r}{q}+\frac{\zeta q''}{4q^2}
+ -\frac{5\zeta(q')^2}{16q^3}+\frac{5}{16\zeta^2},
+\end{equation}
+where derivatives of $q$ are with respect to $\chi$.
+Seek a corrected coordinate $g=\zeta+\lambda^{-2}B_1+\lambda^{-4}B_2$;
+then $W\simeq\Ai(\lambda^{2/3}g)/\sqrt{g'}$.
+The Schwarzian equation $\lambda^2g(g')^2-\{g,\zeta\}/2=\lambda^2\zeta+\psi$
+gives the regular coefficient equations
+\begin{align}
+ B_1+2\zeta B_1'&=\psi,\\
+ B_2+2\zeta B_2'&=B_1'''/2-2B_1B_1'-\zeta(B_1')^2.
+\end{align}
+For this potential the WKB phase primitives are elementary. Set
+$v=c/\sqrt{1-\beta^2s^2}$ and $x=v^{-2}$. One way to derive them is to
+expand the WKB momentum $\sqrt q F$, $F=1+\sum_{n\geq1}\lambda^{-2n}F_n$.
+With $J=(v^2-1)(v^2-h)/(1-h)$, $A_0=-v(v^2-h)/(1-h)$ and
+$A=A_0+J F_v/F$, the momentum equation reads
+\[
+ F^2=1+\lambda^{-2}[r/q+JA_v/2+A_0A/2-A^2/4].
+\]
+The primitives $H_n=\int(F_n/J)\,dv$ at the first two orders are
+\begin{align}
+ H_1(v)&=\frac{(1+h)v-5v^3/3}{8(1-h)},\quad
+ H_2(v)=-\frac{v^9P(x)}{5760(1-h)^3},\\
+ P(x)&=5525-9945(1+h)x+(4779+16983h+4779h^2)x^2\notag\\
+ &\quad-(375+7395h+7395h^2+375h^3)x^3
+ +(405h+2610h^2+405h^3)x^4 .
+\end{align}
+Matching to the Airy phase (or substituting into the coefficient equations)
+then gives
+\begin{align}
+ B_1&=-H_1/\sqrt\zeta-5/(48\zeta^2),\\
+ B_2&=-H_2/\sqrt\zeta-1105/(9216\zeta^5)
+       -B_1^2/(4\zeta)+5B_1/(32\zeta^3).
+\end{align}
+These formulas use real analytic continuation across the turn. The apparent
+poles cancel: write
+\begin{align}
+ R(x)&=\sum_{j\geq0}\frac{3(1+h+\cdots+h^j)}{2j+3}x^j,
+ &\zeta&=x[(1-h)R/2]^{2/3},\\
+ E(x)&=R[1-3(1+h)x/5]-1,
+ &B_1\zeta^2&=5E/48,\\
+ B_2\zeta^5&=(P R^3-5525+750E-125E^2)/46080 .
+\end{align}
+The numerators vanish to order 2 and 5 respectively. In the local disk
+$|x|\max(1,|h|)\leq0.2$, evaluate divided series in the scaled $x$;
+coefficients of the second numerator are generated in a symmetric polynomial
+basis by \texttt{tests/generate\_refined\_airy.py}. Outside the disk the
+closed forms and their analytical derivatives are well conditioned.
+
+With $a_0=\lim_{\chi\to0}[\int_\chi^{\chi_t}\sqrt q\,dt+\log\chi]$,
+match the regular origin amplitude using
+\begin{equation}
+ u\simeq M(\lambda^{2/3}\zeta/q)^{1/4}
+ \frac{\Ai(\lambda^{2/3}g)}{\sqrt{g'}},\quad
+ M=2\sqrt\pi A_\ell\exp\!\left(\lambda a_0-\frac{H_1(1)}{\lambda}
+ -\frac{H_2(1)}{\lambda^3}\right).
+\end{equation}
+Omit $H_2$ when using only $B_1$; $a_0=\log(2/\sqrt{\beta^2-K})-\beta T_K^{-1}(1/\beta)$,
+where $T_{-1}^{-1}=\arctan$, $T_1^{-1}=\atanh$.
+The code cancels the large gamma and action terms analytically and retains
+small Stirling remainders. It works in the scaled coordinate
+$\tau=\lambda^{2/3}\zeta$ and preserves the corrected action in the Airy tails.
+
+\section{Selection, error control and validation}
+A useful common expansion parameter is
+$\mu=\lambda(1-h)/(1+|h|)^{3/2}$: it approaches $\lambda$ near flat space,
+$\nu$ for small open $\nu$, and $(\nu-\lambda)/\sqrt2$ near the closed
+sectoral limit. Use the first corrected map for $\mu\geq16$, both
+corrections for $4\leq\mu<16$, and exact series or \eqref{eq:compact} otherwise.
+Short exact series take precedence when economical. In the open region
+$\mu<4$, $\ell\geq8$ implies $\nu^2<16(8.5)^2/((8.5)^2-16)$, so
+$B\leq1/4$ fits the compact box; for $B\geq1/4$, $q_0\leq1/(16B^2)\leq1$.
+This is a coverage argument, not a proof of the numerical error of the maps.
+Term bounds, roundoff screens, positive map Jacobian and finite-value checks
+reject unsafe cases. The original CAMB fallback remains available.
+
+The exact series have analytical truncation bounds (the floating-point
+roundoff screens are heuristic). The Airy order thresholds and quadrature
+convergence criterion are validated choices, not rigorous continuous-domain
+forward-error certificates. Near zeros the relevant accuracy is absolute or
+peak-normalized, not relative. No new hyperspherical recurrence is used.
+On a retained 64,323-point positive-frequency stress grid (both curvature
+signs and flat space), the complete dispatcher had no errors above
+$2\times10^{-4}$; the new paths directly accepted 20,676 of 20,879 curved
+fallback calls with $\ell>2$. An independent turning-point grid and a
+compact-domain boundary grid, the latter extending to $\ell\simeq10^6$,
+also passed the corresponding peak/local-scale tests. In a standalone
+Fortran harness with the actual CAMB numerical routines, the median
+CPU time per point was 2.28 versus 0.46 microseconds (original versus
+candidate, identical GNU Fortran optimization flags). These are synthetic
+pointwise timings, not cosmological speedups.
+
+The change is deliberately limited to the pointwise fallback; a full CAMB
+spectra and transfer-function comparison is still required before replacing
+the leading Olver path or removing the safety fallback.
+\end{document}

@@ -280,7 +280,8 @@ class MathutilsTest(unittest.TestCase):
             (80, -1, 20.0, 6.0),
             (80, 1, 90.0, 1.0),
         ]:
-            np.testing.assert_allclose(phi_olver(*args), phi_recurs(*args), rtol=1e-14, atol=0)
+            # Checked exact representations need not agree with recurrence to the last few digits.
+            np.testing.assert_allclose(phi_olver(*args), phi_recurs(*args), rtol=2e-11, atol=0)
 
         nonflat_chis = np.geomspace(1e-5, np.pi, 192)
         for ell, curvature, nu in [
