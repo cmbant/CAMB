@@ -394,6 +394,21 @@ where the Debye powers become ill-conditioned.
 
 The implementation of \code{BJL\_POSTPEAK\_DEBYE} is algebraically arranged for speed.  The leading prefactor is evaluated as $1/\sqrt{u\,a}$, with $u=\sqrt{a^2-\nu^2}$; the small logarithmic amplitude correction is applied as the second-order expansion $1-E_{>}+E_{>}^2/2$; and, when $a$ is far enough above the peak, $\arccos(\nu/a)$ is replaced by a polynomial approximation to $\arcsin(\nu/a)/(\nu/a)$.  For $\ell\ge26$ and $a\ge3\nu$ the routine uses a still shorter far-tail form retaining the dominant phase correction, which the source comments bound below about $5\times10^{-6}$ peak-normalized at the gate and better farther out.
 
+The correction algebra is evaluated in terms of
+$h=1/\sqrt{a^2-\nu^2}$ and $w=(\nu h)^2$, avoiding the inverse
+powers of the squared secant.  The phase and logarithmic amplitude corrections
+in the full branch become
+\begin{align}
+ \Delta\theta &=-\frac{h(3+5w)}{24}
+ +\frac{h^3[375+w(4779+w(9945+5525w))]}{5760},\\
+ E_>&=h^2(1+w)\left[
+ \frac{1+5w}{16}
+ -\frac{h^2[13+w(271+w(791+565w))]}{128}\right].
+\end{align}
+These are algebraic rearrangements of the previous full Debye terms;
+the far-tail branch uses only the first term of $\Delta\theta$ and sets
+$E_>=0$.
+
 \section{The turning point: why Airy functions appear}
 
 A second-order differential equation has a turning point where the local character of the solution changes from exponential to oscillatory.  For Bessel functions this occurs at $z=a/\nu=1$.  The Liouville-Green or Olver transformation maps the Bessel equation near this point to the Airy equation

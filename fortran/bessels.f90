@@ -567,7 +567,8 @@
     elemental subroutine BJL_postpeak_debye(nu, ax, jl)
     ! Oscillatory Debye asymptotic above the turning point, valid above the
     ! Airy band (u = ax/nu - 1 > 0.42, or eta above the gates in BJL).
-    ! Identical to the standard two-correction form but with
+    ! Standard two-correction form (first phase correction only in the
+    ! far tail), with
     !   sqrt(cotb*cosb)/nu = 1/sqrt(sx*ax),  nu/cotb = sx,
     ! exp(-expterm) expanded to second order (expterm < ~1e-3 over the
     ! accepted domain, so the expansion error is < ~1e-9), and
@@ -588,17 +589,18 @@
         +4.97790102349004449e-02_dl, -9.71772607183009063e-02_dl, &
         +2.46755256321489758e-01_dl, -2.76229262323224423e-01_dl, &
         +1.68861570948557360e-01_dl]
-    real(dl) :: nu2, sx, cotb, cot3b, cot6b, sec2b, trigarg, expterm
+    real(dl) :: sx, cotb, trigarg, expterm, h, h2, w
     real(dl) :: cb, s, p
     integer :: k
+    logical :: far_tail
 
-    nu2 = nu*nu
-    sx = sqrt(ax*ax - nu2)
+    sx = sqrt(ax*ax - nu*nu)
 
     cb = nu/ax
     s = cb*cb
+    far_tail = nu > real(BJL_recurrence_MAX_L, dl) + 0.5_dl .and. ax >= 3.0_dl*nu
 
-    if (nu > real(BJL_recurrence_MAX_L, dl) + 0.5_dl .and. ax >= 3.0_dl*nu) then
+    if (far_tail) then
         ! In the far post-peak tail the first phase correction dominates the
         ! remaining Debye terms.  For L >= 26 and ax >= 3*nu this stays below
         ! 5e-6 peak-normalized error, improving rapidly with ax/nu.
@@ -607,15 +609,7 @@
         p = 1.0_dl + s*(1.0_dl/6.0_dl + s*(3.0_dl/40.0_dl + s*(5.0_dl/112.0_dl &
             + s*(35.0_dl/1152.0_dl + s*(63.0_dl/2816.0_dl + s*(231.0_dl/13312.0_dl))))))
         trigarg = sx + nu*(cb*p - pid2)
-        cotb = nu/sx
-        cot3b = cotb*cotb*cotb
-        sec2b = 1.0_dl/s
-        trigarg = trigarg - pid4 - (2.0_dl + 3.0_dl*sec2b)*cot3b/(24.0_dl*nu)
-        jl = cos(trigarg)/sqrt(sx*ax)
-        return
-    end if
-
-    if (s < 0.4975_dl) then
+    else if (s < 0.4975_dl) then
         p = a(10)
         do k = 9, 0, -1
             p = p*s + a(k)
@@ -625,18 +619,22 @@
         trigarg = sx - nu*acos(cb)
     end if
 
-    cotb = nu/sx
-    sec2b = 1.0_dl/s
-    cot3b = cotb*cotb*cotb
-    cot6b = cot3b*cot3b
+    ! Express the Debye corrections using h=1/sx and w=(nu/sx)**2,
+    ! eliminating reciprocal secant factors and repeated divisions.
+    h = 1.0_dl/sx
+    cotb = nu*h
+    w = cotb*cotb
+    trigarg = trigarg - pid4 - h*(3.0_dl + 5.0_dl*w)/24.0_dl
 
-    trigarg = trigarg - pid4 &
-        - ((2.0_dl + 3.0_dl*sec2b)*cot3b/24.0_dl &
-        + (16.0_dl - (1512.0_dl + (3654.0_dl + 375.0_dl*sec2b)*sec2b)*sec2b) &
-        *cot3b*cot6b/5760.0_dl/nu2)/nu
-    expterm = ((4.0_dl + sec2b)*sec2b*cot6b/16.0_dl &
-        - (32.0_dl + (288.0_dl + (232.0_dl + 13.0_dl*sec2b)*sec2b)*sec2b) &
-        *sec2b*cot6b**2/128.0_dl/nu2)/nu2
+    if (far_tail) then
+        jl = cos(trigarg)/sqrt(sx*ax)
+        return
+    end if
+
+    h2 = h*h
+    trigarg = trigarg + h*h2*(375.0_dl + w*(4779.0_dl + w*(9945.0_dl + 5525.0_dl*w)))/5760.0_dl
+    expterm = h2*(1.0_dl + w)*((1.0_dl + 5.0_dl*w)/16.0_dl &
+        - h2*(13.0_dl + w*(271.0_dl + w*(791.0_dl + 565.0_dl*w)))/128.0_dl)
     jl = (1.0_dl - expterm*(1.0_dl - 0.5_dl*expterm))*cos(trigarg)/sqrt(sx*ax)
 
     end subroutine BJL_postpeak_debye

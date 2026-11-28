@@ -828,7 +828,10 @@ is still applied at large \(\nu/l\): low-\(l\) and endpoint cases showed that
 an unconditional \(\nu/l\ge3\) pointwise shortcut is too broad.
 \end{enumerate}
 Here ``fallback'' does not necessarily mean immediate recurrence.  At high
-\(l\), the code first tries the second-order Airy one-point approximation
+\(l\), closed modes with \(l\ge30\) and \(n=\nu-l-1\le24\) use the
+direct normalized Gegenbauer formula described below, before either leading
+map is attempted.  Otherwise, in the fallback region, the code tries the
+second-order Airy one-point approximation
 derived in Appendix~\ref{app:second-order-airy}: \(l\ge100\) in open models
 and \(l\ge150\) in closed models, subject to the Airy-specific gates in that
 appendix.  If this Airy branch is outside its calibrated range, open models
@@ -854,11 +857,9 @@ Inside this region, the closed Airy fallback has the additional gate
 For large \(l\) this is approximately \(2d-1\ge15\), so the Airy branch covers
 roughly \(d\gtrsim8\).  High-\(l\) closed points that miss both the leading
 Olver and Airy gates are therefore very close to the finite spectral endpoint,
-with small Gegenbauer degree \(n=d-1\).  For \(l<150\), direct recurrence is
-cheap because the requested order itself is modest.  In both cases the
-finite-spectrum endpoint or Gegenbauer start keeps the exact fallback cheap
-enough for the occasional seed and re-seed values used by the source
-integrator.
+with small Gegenbauer degree \(n=d-1\).  The direct polynomial branch covers
+this region without the \(O(l)\) Miller normalization.  For \(l<150\),
+direct recurrence is cheap because the requested order itself is modest.
 These thresholds are calibrated on peak-normalized Bessel error on a validation
 grid that includes dense low-\(\chi\) points, turning-point stencils, closed
 endpoints, \(l\le10000\), and open-space tails about eighty oscillations past the
@@ -1101,7 +1102,31 @@ When \(G\) is safely non-zero, the arbitrary Miller amplitude is rescaled to \(\
 \begin{equation}
   C_k^\lambda(x)=\frac{2(k+\lambda-1)xC_{k-1}^\lambda(x)-(k+2\lambda-2)C_{k-2}^\lambda(x)}{k},
 \end{equation}
-with the derivative recurrence obtained by differentiating this relation.  This provides a stable top boundary condition for the Miller recurrence in a finite closed spectrum.  The Gegenbauer calculation is not used as a separate final approximation; it only supplies the Miller start in \eqref{eq:gegenbauer-direct-start}.
+with the derivative recurrence obtained by differentiating this relation.  This provides a stable top boundary condition for the Miller recurrence in a finite closed spectrum.  In \code{phi_recurs} this supplies only the Miller start in
+\eqref{eq:gegenbauer-direct-start}; the independent recurrence reference is
+unchanged.  For closed modes of small degree, however, \code{closed_endpoint_u}
+returns the normalized Gegenbauer solution directly for \(l\ge30\), \(n\le24\).
+Writing \(a=l+1\), its normalization is
+\begin{equation}
+ N_{l\nu}^2 =
+ \frac{2^{2l}\Gamma(l+1)^2 n!}{\nu\,\Gamma(n+2l+2)}
+ = \frac{\sqrt{\pi}}{2(a+n)}\frac{\Gamma(a)}{\Gamma(a+1/2)}
+   \frac{n!}{(2a)_n}.
+\end{equation}
+The last ratio is accumulated along with the polynomial recurrence, and the
+gamma ratio is evaluated as
+\[
+ \frac{\Gamma(a)}{\Gamma(a+1/2)}
+ = a^{-1/2}\left(1+\frac{1}{8a}+\frac{1}{128a^2}
+ +\order(a^{-3})\right).
+\]
+At \(l\ge30\) the omitted normalization term is below \(10^{-6}\) of the peak, well below the Bessel
+accuracy target.  The reduced solution is \(u=N_{l\nu}\sin^{l+1}\chi\,C_n^a(x)\);
+the work scales with the small degree \(n\), not the angular order \(l\).
+The branch retains the exact folding parity.  A uniform parabolic-cylinder
+expansion for coalescing turning points (Dunster, arXiv:2504.19405) could be
+useful at larger \(n\) and small \(n/l\), but is unnecessary for these small
+integer degrees and is not implemented.
 
 \section{How CAMB actually uses the approximations in source integration}
 
@@ -1632,15 +1657,32 @@ where \(R\) contains the scalar higher-order correction used with the
   \frac{1}{\lambda}\left[
   \frac{1}{12}-\frac{K}{24(\beta^2-K)}
   \right]
-  -\frac{1}{225\lambda^2}
+  -\frac{B_0'(0)}{2\lambda^2}
   -\frac{1}{360\lambda^3}
   +\frac{1}{1260\lambda^5}.
   \label{eq:app-airy-logR}
 \end{equation}
-For \(K=0\) the curvature term in the square brackets vanishes.  This
-normalization is evaluated in logarithmic form in the implementation so that
-large \(l\), very small tails, and closed-space products do not overflow or
-underflow prematurely.
+Here, with \(\kappa=K/\beta^2\),
+\begin{equation}
+ B_0'(0)=\frac{(1+\kappa)(8\kappa^2-9\kappa+8)}{900(1-\kappa)^2}.
+\end{equation}
+For \(K=0\) the curvature term in the square brackets vanishes and the
+second-order term reduces to \(-1/(225\lambda^2)\).
+Combining the shifted Stirling expansion of the origin gamma ratios with
+\(\lambda q_0\) and \(\log R\) cancels the large logarithmic terms and the
+first inverse-order correction.  The implemented normalization is
+\[
+ \mathcal N\simeq \sqrt{\frac{\pi}{\nu}}\,\lambda^{-1/3}
+ \left[1-\frac{B_0'(0)}{2\lambda^2}+\delta_K\right],
+ \qquad
+ \delta_{+1}=\frac{7}{5760}
+ \left[(\nu+\lambda)^{-3}-(\nu-\lambda)^{-3}\right],
+ \quad \delta_{0}=\delta_{-1}=0.
+\]
+The omitted open-space cubic Stirling remainder and exponential correction
+are below the numerical accuracy target in the accepted gates, as is
+linearizing the small logarithmic correction.  No gamma, logarithm,
+inverse trigonometric function or exponential is needed for the normalization.
 
 \subsection{How the optimized implementation evaluates the second-order terms}
 
@@ -1650,90 +1692,85 @@ construction of \(B_0\) and \(A_1\).
 
 First it folds closed-space \(\chi\) into the fundamental interval, keeping the
 exact parity sign \(\sigma\).  It then forms
-\(\lambda=l+1/2\), \(\beta=\nu/\lambda\), the turning point
-\(\chi_t\), the action coordinate \(\zeta\), the local value \(q(\chi)\), and
-the Airy argument \(X=\lambda^{2/3}\zeta\).  The Liouville amplitude is
-\((\zeta/q)^{1/4}\), with the turning-point limit used when either quantity is
-too small for the direct ratio.
+\(\lambda=l+1/2\), \(\beta=\nu/\lambda\), the action coordinate
+\(\zeta\) and the Airy argument \(X=\lambda^{2/3}\zeta\).
+The sign of \(1-\beta^2\SK^2\) identifies the side of the turn without
+computing \(\chi_t\).  The Liouville amplitude is \((\zeta/q)^{1/4}\);
+near the turning point the ratio is formed directly from the regular series
+below.  The already available \(\SK(\chi)\) is reused.
 
-The second-order coefficient calculation is local to the requested point.  The
-code samples \(\psi\) along the same side of the turning point as the requested
-\(\chi\), using the segment
+The second-order coefficient calculation is analytic.  Inserting
+\(q=1/\SK^2-\beta^2\) and \(r=-1/(4\SK^2)\) into
+\eqref{eq:app-B0-integral} gives an elementary primitive.  Define
+\[
+ \kappa=\frac{K}{\beta^2},\quad
+ y=\frac{1-\beta^2\SK^2}{1-K\SK^2},\quad
+ t=\sqrt{\frac{1-K\SK^2}{|1-\beta^2\SK^2|}},\quad
+ \epsilon=\operatorname{sgn}\zeta.
+\]
+On either side of the turning point the real formula is
 \begin{equation}
-  \chi_i=\chi_t+\tau_i(\chi-\chi_t),
-  \qquad
-  \tau_i=\left\{0,\,
-  0.1464466094,\,
-  0.5,\,
-  0.8535533906,\,
-  1\right\}.
-  \label{eq:app-second-nodes}
+ B_0(\zeta)=
+ \frac{t[5t^2/3-\epsilon(1+\kappa)]}{8(1-\kappa)\sqrt{|\zeta|}}
+ -\frac{5}{48\zeta^2}.
 \end{equation}
-At each sample point it computes \(\zeta_i\) from the analytic action and then
-evaluates \(\psi(\zeta_i)\) from \eqref{eq:app-psi}.  Very near the turning
-point, \(\abs{\zeta}\le2\times10^{-3}\), it uses the finite value \(\psi_t\)
-from \eqref{eq:app-psi-turn} instead of the subtractive formula.  If the
-requested \(\abs{\zeta}\) is below \(1.6\times10^{-2}\), the fit segment is
-enlarged to this fixed magnitude on the same side of the turn; this keeps the
-polynomial fit well conditioned while still evaluating the final coefficients
-at the requested \(\zeta\).
+Using \eqref{eq:app-B0-ode}, the product \(\psi B_0\) is just
+\((\zeta B_0^2)'\).  Therefore \eqref{eq:app-A1-integral} becomes
+\begin{equation}
+ A_1(\zeta)=\frac12\left[\zeta B_0^2-B_0'(\zeta)+B_0'(0)\right].
+\end{equation}
+Away from the turning point the derivative is also elementary:
+\[
+ B_0'=-\frac{\epsilon\beta^2\SK^2[5t^2-\epsilon(1+\kappa)]}
+ {8(1-\beta^2\SK^2)^2}-\frac{B_0}{2\zeta}+\frac{5}{32\zeta^3}.
+\]
+These expressions require no extra action evaluations or residual interpolation.
 
-The sampled values are converted to a degree-four polynomial in a scaled
-coordinate,
-\begin{equation}
-  \psi(v)\simeq \sum_{i=0}^{4}c_i\left(\frac{v}{\zeta_s}\right)^i,
-  \label{eq:app-psi-poly}
-\end{equation}
-where normally \(\zeta_s=\zeta\), with a small fixed lower magnitude used close
-to the turning point.  The interpolation uses Newton divided differences,
-which is cheaper than a dense linear solve for this fixed small degree.
-Because the Olver functionals \eqref{eq:app-B0-real} and
-\eqref{eq:app-A1-integral} are integrals of \(\psi\), the polynomial makes
-\(B_0\) and \(A_1\) analytic sums.  With
-\(\rho=\zeta/\zeta_s\), and for \(\zeta\ne0\),
-\begin{equation}
-  B_0(\zeta)\simeq
-  \sum_{i=0}^{4}\frac{c_i\rho^i}{2i+1},
-  \label{eq:app-code-B0}
-\end{equation}
-and
-\begin{equation}
-  A_1(\zeta)\simeq
-  \frac12\left[
-  \zeta
-  \sum_{i=0}^{4}\sum_{j=0}^{4}
-  \frac{c_i c_j\rho^{i+j}}{(2j+1)(i+j+1)}
-  -\frac{1}{\zeta}
-  \sum_{i=2}^{4}\frac{i\,c_i\rho^i}{2i+1}
-  \right].
-  \label{eq:app-code-A1}
-\end{equation}
-At the turning point the limiting convention is used instead:
-\begin{equation}
-  B_0(0)=\psi_t,\qquad A_1(0)=0.
-  \label{eq:app-code-turn-limit}
-\end{equation}
-Thus the apparent \(1/\zeta\) in \eqref{eq:app-code-A1} is not evaluated at
-\(\zeta=0\); it is only the finite-\(\zeta\) polynomial form of the integral
-\eqref{eq:app-A1-integral}.  This turning-point coefficient limit is separate
-from the Liouville-amplitude limit \((\zeta/q)^{1/4}\).
-For the fitted polynomial approximation to \(\psi\), these sums evaluate the
-Olver functionals analytically.  The remaining error is the local interpolation
-error in \(\psi\).  No inverse \(\zeta\mapsto\chi\) solve and no whole-window
-residual fit is needed.
+Near the turn, let \(c=[(1-\kappa)/2]^{2/3}\) and
+\[
+ F(y)=\sum_{j=0}^{\infty}
+ \frac{3(1+\kappa+\cdots+\kappa^j)}{2j+3}y^j.
+\]
+Then \(\zeta=cyF^{2/3}\).  In the local region the code keeps terms through
+\(j=5\) in \(F\), evaluated using \(h_j=\sum_{i=0}^j y^{j-i}(\kappa y)^i\)
+and \(h_j=(1+\kappa)y h_{j-1}-\kappa y^2 h_{j-2}\).
+This avoids cancellation and extra transcendental action evaluations, and
+gives \(\zeta/q=cF^{2/3}\SK^2/(1-K\SK^2)\) directly, including at the turn.
+For the coefficient,
+\[
+ B_0=\frac{F^{-4/3}}{8(1-\kappa)\sqrt c}\,
+ \frac{[5/3-(1+\kappa)y]F-5/3}{y^2}.
+\]
+Expanding the removable singularity gives the short polynomial used when
+\(\max(1,|\kappa|)|y|\le0.05\):
+\begin{align}
+ B_0&\simeq\frac{p_0+p_1y+p_2y^2}{8(1-\kappa)\sqrt c},\\
+ p_0&=(\kappa-4)(4\kappa-1)/35,\\
+ p_1&=(1+\kappa)(8\kappa^2-9\kappa+8)/225,\\
+ p_2&=[11108(\kappa^4+1)-2543(\kappa^3+\kappa)+823\kappa^2]/606375.
+\end{align}
+Differentiate this polynomial using the action identity
+\[
+ \frac{\dd y}{\dd\zeta}
+ =\frac{2(1-y)(1-\kappa y)}{1-\kappa}\sqrt{|\zeta/y|},
+\]
+with the limit \(1/c\) extremely close to the turn.  This gives the regular
+coefficient \(B_0(0)=\psi_t\) and \(A_1(0)=0\) without cancellation.
+The quadratic local truncation is chosen for the cosmological
+peak-relative error budget, rather than unnecessary special-function precision.
 
 The final value is then obtained by evaluating \(\Ai(X)\) and \(\Ai'(X)\),
 forming the bracket in \eqref{eq:app-second-order-u}, multiplying by the
-logarithmic normalization \(\mathcal N\) and the Liouville amplitude, and
+normalization \(\mathcal N\) and the Liouville amplitude, and
 dividing by \(\SK(\chi)\) if the unreduced \(\phi_l^\nu\) is requested.  The
 acceptance gates are deliberately simple.  The branch is considered only for
 \(l\ge10\), positive \(\nu\), and nonzero \(\chi\).  Flat models then pass this
 base gate.  Open models require \(\nu\ge7\), excluding the low-frequency regime
-where the asymptotic normalization and local residual fit are no longer the
+where the asymptotic normalization and Airy expansion are no longer the
 best cheap approximation.  Closed models require \(\beta>1\) and
 \(\lambda(\beta^2-1)\ge15\), keeping the calculation away from the
-near-degenerate endpoint where the closed turning point approaches the pole
-and recurrence is more reliable.  There is no symmetric high-\(\abs{X}\)
+near-degenerate endpoint where the closed turning points approach the equator
+and the direct Gegenbauer branch or recurrence is more reliable.  There is no symmetric high-\(\abs{X}\)
 acceptance cut.  Instead, when \(X>25.77\) the code returns zero, since this is
 the exponentially small positive Airy tail and is negligible on the
 peak-normalized accuracy scale.  Outside the remaining gates the caller can use
@@ -1742,9 +1779,8 @@ the other approximations or the stable recurrence fallback.
 Relative to the leading Airy approximation, the new content is therefore not
 the Airy action map itself, but the local second-order residual correction:
 \(B_0(\zeta)\) supplies the \(\Ai'\) admixture, and \(A_1(\zeta)\) supplies the
-next scalar correction to the \(\Ai\) amplitude.  The implementation keeps just
-enough local information about \(\psi\) to evaluate these two functions at the
-single point being requested.
+next scalar correction to the \(\Ai\) amplitude.  The implementation evaluates these functions directly at the single point
+being requested.
 
 \section{Open-space small-\texorpdfstring{\(\nu\)}{nu} approximation}
 \label{app:smallnu-open}

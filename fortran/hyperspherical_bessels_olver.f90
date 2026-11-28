@@ -4,11 +4,12 @@
     ! with fallback where not reliable to next order Olver/Airy approx or recursion.
     ! Precision target 1e-4 of peak, with max error < 2e-4.
     use precision
+    use HypersphericalBesselRefined, only: refined_u
     use constants, only: const_pi
     use FlatBessels, only: BJL
     use SpherBessels, only: phi_recurs
     use HypersphericalBesselUtils, only: normalize_chi, turning_point, curved_radius, qintegral_exact, CACHE_EPS
-    use HypersphericalBesselAiry, only: airy_u_normalized, airy_ok
+    use HypersphericalBesselAiry, only: airy_u_normalized
     use HypersphericalBesselSmallNu, only: open_smallnu_u
     implicit none
     private
@@ -27,10 +28,23 @@
     real(dl), parameter :: SMALLCHI_GATE_METRIC = 5.0e-2_dl
     integer, parameter :: AIRY_FALLBACK_OPEN_L_MIN = 100
     integer, parameter :: AIRY_FALLBACK_CLOSED_L_MIN = 150
+    integer, parameter :: CLOSED_DIRECT_L_MIN = 30
+    integer, parameter :: CLOSED_DIRECT_MAX_DEGREE = 24
 
-    public :: phi_olver, u_olver
+    public :: phi_olver, u_olver, use_closed_refined_mode
 
     contains
+
+    elemental logical function use_closed_refined_mode(l, K, nu) result(use_refined)
+    ! The maximum of the old closed radial metric on the folded domain is
+    ! pi/[4(nu-l)]. Select the evaluator for the whole mode, including small chi:
+    ! a radial switch can amplify errors in adjacent Numerov seed values.
+    integer, intent(in) :: l, K
+    real(dl), intent(in) :: nu
+
+    use_refined = K == 1 .and. nu - real(l, dl) < const_pi/(4*OLVER_GATE_CLOSED_EPS)
+
+    end function use_closed_refined_mode
 
     function phi_olver(l, K, nu, chi) result(phi)
     ! phi_l^nu(chi).  Assumes l >= 0, chi >= 0, and for K=1 an integer nu > l
@@ -76,7 +90,9 @@
         return
     end if
 
-    if (l <= 2) then
+    ! For very small closed multipoles recurrence is cheap and avoids
+    ! residual Airy approximation errors in sensitive large-angle sources.
+    if (l <= 2 .or. (l <= 8 .and. use_closed_refined_mode(l, K, nu))) then
         val = symm*phi_recurs(l, K, nu, achi)
         if (reduced) val = val*curved_radius(K, achi)
         return
@@ -101,6 +117,27 @@
     real(dl), intent(in) :: nu, achi, sin_k, symm
     real(dl) :: u
     real(dl) :: alpha_gate, z, amp, j_l
+    integer :: n
+
+    ! The finite-spectrum polynomial is cheap and accurate across the
+    ! fundamental interval; bypass both leading maps and Airy for small n.
+    if (K == 1 .and. l >= CLOSED_DIRECT_L_MIN) then
+        n = nint(nu) - l - 1
+        if (n >= 0 .and. n <= CLOSED_DIRECT_MAX_DEGREE) then
+            u = symm*closed_endpoint_u(l, n, achi, sin_k)
+            return
+        end if
+    end if
+
+    if (K == -1 .and. nu == 0._dl) then
+        u = fallback_reduced(l, K, nu, achi, sin_k, symm)
+        return
+    end if
+
+    if (use_closed_refined_mode(l, K, nu)) then
+        u = fallback_reduced(l, K, nu, achi, sin_k, symm)
+        return
+    end if
 
     alpha_gate = nu/real(l, dl)
 
@@ -111,29 +148,10 @@
             return
         end if
     else
-        ! Empirical recurrence fallback for corners where the leading Olver map
-        ! is not pointwise reliable at the 1e-4 peak-normalized level.
-        ! The raw open-space approximation is accepted over the full sampled
-        ! interval when alpha ~= nu/l clears a smooth, grid-calibrated cutoff
-        ! in l. Below that cutoff, and for closed-space endpoint tails, the
-        ! accepted region is limited by the small endpoint parameter
-        !
-        !   open:   eps_peak = O(chi / (2 nu))
-        !   closed: eps_peak = O(chi / (2 (nu-l))).
-        !
-        ! Constants are grid-calibrated against phi_recurs, including low-l
-        ! cases, high-l cases to l=10000, dense turning samples, very small chi,
-        ! and open-space tails about 80 oscillations past the turning region.
-        !
-        ! Both metrics are cheap, so they are tested before open_alpha_cut,
-        ! which costs a real-exponent power.
-        if (K == 1) then
-            ! nu is an integer mode > l for K=1, so the denominator is >= 2.
-            if (achi/(2._dl*(nu - real(l, dl))) > OLVER_GATE_CLOSED_EPS) then
-                u = fallback_reduced(l, K, nu, achi, sin_k, symm)
-                return
-            end if
-        else if (K == -1) then
+        ! The remaining open-space pointwise gate is unchanged.
+        ! Below the calibrated alpha cutoff, restrict leading Olver to
+        ! chi/(2 nu) <= OLVER_GATE_OPEN_EPS.
+        if (K == -1) then
             if (achi/(2._dl*max(nu, tiny(1._dl))) > OLVER_GATE_OPEN_EPS &
                 .and. alpha_gate < open_alpha_cut(l)) then
                 u = fallback_reduced(l, K, nu, achi, sin_k, symm)
@@ -150,16 +168,23 @@
     end function olver_reduced
 
     function fallback_reduced(l, K, nu, achi, sin_k, symm) result(u)
-    ! The Olver gates above are unchanged; within their recursive fallback
-    ! region, use validated faster approximations where available before
-    ! falling back to phi_recurs.
+    ! Try the refined evaluator first, then retain the previous
+    ! approximations and phi_recurs as safety paths.
     integer, intent(in) :: l, K
     real(dl), intent(in) :: nu, achi, sin_k, symm
     real(dl) :: u
     logical :: ok
 
-    if (use_airy_fallback(l, K, nu, achi)) then
-        u = airy_u_normalized(l, K, nu, achi, ok)
+    ! First try checked exact representations and the corrected Airy map.
+    ! Retain the previous paths for unsupported or ill-conditioned evaluations.
+    call refined_u(l, K, nu, achi, sin_k, u, ok)
+    if (ok) then
+        u = symm*u
+        return
+    end if
+
+    if (use_airy_fallback(l, K)) then
+        u = airy_u_normalized(l, K, nu, achi, ok, sin_k_in=sin_k)
         if (ok) then
             u = symm*u
             return
@@ -178,13 +203,43 @@
 
     end function fallback_reduced
 
-    logical function use_airy_fallback(l, K, nu, achi) result(use_airy)
+    pure real(dl) function closed_endpoint_u(l, n, chi, sin_k) result(u)
+    ! u = N sin(chi)**(l + 1) C_n^(l + 1)(cos chi), n = nu-l-1.
+    ! n<=24 and l>=30 in the caller, so no long recurrence or gamma calls.
+    ! With a=l+1, N**2=sqrt(pi)*Gamma(a)*n! /
+    ! [2*(a+n)*Gamma(a+1/2)*(2*a)_n].  The gamma ratio is
+    ! a**(-1/2)*(1+1/(8*a)+1/(128*a**2)+O(a**(-3))), relative error < 2e-7
+    ! for a>=31.  Add -5/(1024*a**3)-21/(32768*a**4) for < 1e-10 if needed.
+    integer, intent(in) :: l, n
+    real(dl), intent(in) :: chi, sin_k
+    real(dl) :: a, x, prev, p, next, norm2, ri
+    integer :: i
+
+    a = real(l, dl) + 1._dl
+    x = cos(chi)
+    prev = 0._dl
+    p = 1._dl
+    norm2 = 1._dl
+    do i = 1, n
+        ri = real(i, dl)
+        next = (2._dl*(a + ri - 1._dl)*x*p - (2._dl*a + ri - 2._dl)*prev)/ri
+        prev = p
+        p = next
+        norm2 = norm2*ri/(2._dl*a + ri - 1._dl)
+    end do
+
+    norm2 = norm2*sqrt(const_pi)/(2._dl*(a + n)*sqrt(a)) &
+        *(1._dl + (1._dl/8._dl + 1._dl/(128._dl*a))/a)
+    u = sqrt(norm2)*sin_k**(l + 1)*p
+
+    end function closed_endpoint_u
+
+    logical function use_airy_fallback(l, K) result(use_airy)
     ! Second-order Olver/Airy patch: validated only well away from low l.
     integer, intent(in) :: l, K
-    real(dl), intent(in) :: nu, achi
+    ! airy_u_normalized checks the remaining mode/coordinate gates.
 
     use_airy = .false.
-    if (.not. airy_ok(l, K, nu, achi)) return
 
     select case (K)
     case (-1)
