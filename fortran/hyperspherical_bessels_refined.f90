@@ -166,7 +166,7 @@
     logical, intent(out) :: ok
     integer :: j
     real(dl) :: ell, nu2, d, theta, us, cs, tr, ti, sr, si, aa, bb, fac, fr, fi, newr
-    real(dl) :: mag, q, h, hn, mn, s0, s1, ar, ai, rs, ri, scale, err, rnd
+    real(dl) :: mag, q, h, hn, mn, s0, s1, ar, ai, rs, ri, scale, err, rnd, amp
     u = 0._dl
     ok = .false.
     ell = real(l,dl)
@@ -174,6 +174,7 @@
     q = z*ell*sqrt((ell*ell+nu2)/(1+nu2))
     ! Keep the amplification (1-z)^(-l) bounded as well as the term ratios.
     if (z > 0.25_dl .or. q > qmax) return
+    amp = exp(-ell*log1p(-z))
     d = chi-phase_over_nu(l,nu)
     theta = nu*d
     if (abs(theta) < 1.e-4_dl) then
@@ -192,7 +193,8 @@
     ri = 0._dl
     do j = 0, min(l,max_terms)
         u = us*sr+cs*si
-        scale = max(abs(u),1/max(1._dl,nu))
+        ! Apply the absolute error floor to the final, amplified reduced function.
+        scale = max(abs(u),1/(amp*max(1._dl,nu)))
         err = 0._dl
         aa = ell-j
         bb = real(j+1,dl)
@@ -216,7 +218,7 @@
         end if
         rnd = 8*epsilon(1._dl)*(j+1)*(abs(us)*rs+abs(cs)*ri)
         if (err+rnd <= tol*scale) then
-            u = exp(-ell*log1p(-z))*u
+            u = amp*u
             ok = ieee_is_finite(u)
             return
         end if

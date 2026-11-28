@@ -55,7 +55,9 @@ avoid an $O(\ell)$ phase sum. Bounds on the coefficient magnitudes and phases
 control the scaled imaginary tail; a separate roundoff screen rejects
 ill-conditioned sums. The work limit is 40 terms. In addition to limiting
 $q_0$, require $z\leq1/4$: since $q_0\geq\ell z$,
-$-\ell\log(1-z)\leq q_0/(1-z)$, bounding the external amplification.
+$-\ell\log(1-z)\leq q_0/(1-z)$, bounding the external amplification. The
+absolute stopping tolerance is scaled by the inverse of this amplification
+so that it applies to the final reduced function $u$.
 
 \paragraph{Closed geometry.}
 For $p=\nu-\ell-1=2m+\epsilon$ with $\epsilon\in\{0,1\}$, use the

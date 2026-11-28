@@ -1,0 +1,104 @@
+name: Refined hyperspherical audit (temporary)
+on:
+  push:
+    branches: [test-refined-hyperspherical-audit]
+permissions:
+  contents: read
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+      - run: python -m pip install pre-commit
+      - name: Format candidate and verify hooks
+        run: |
+          files="fortran/hyperspherical_bessels_refined.f90 fortran/tests/generate_refined_airy.py camb/tests/mathutils_test.py"
+          pre-commit run --files $files || true
+          pre-commit run --files $files
+      - name: Report formatted source
+        if: always()
+        run: |
+          python - <<'PY'
+          import base64
+          from pathlib import Path
+          for p in ["fortran/hyperspherical_bessels_refined.f90", "fortran/tests/generate_refined_airy.py", "camb/tests/mathutils_test.py"]:
+              data = base64.b64encode(Path(p).read_bytes()).decode("ascii")
+              for i in range(0, len(data), 2000):
+                  print(f"FORMATFILE|{p}|{i//2000}|{data[i:i+2000]}")
+          PY
+  spectra:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+      - name: Build candidate and run focused tests
+        run: |
+          python -m pip install -e .
+          OMP_NUM_THREADS=1 python -m unittest camb.tests.mathutils_test.MathutilsTest.test_hyperspherical_refined_exact_representations camb.tests.mathutils_test.MathutilsTest.test_hyperspherical_corrected_airy
+      - name: Build unmodified baseline
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/camb-baseline" 3d524fece061bd88e3b2786312bfe99391826fc6
+          cd "$RUNNER_TEMP/camb-baseline"
+          git submodule update --init --recursive
+          python -m pip install -e .
+      - name: Compare spectra and transfer functions
+        env:
+          OMP_NUM_THREADS: "1"
+        run: |
+          cat > "$RUNNER_TEMP/compare.py" <<'PY'
+          import time
+          import os
+          import numpy as np
+          import camb
+          from pathlib import Path
+          out = Path(os.environ["AUDIT_OUT"])
+          out.mkdir(exist_ok=True)
+          for omk in (-0.05, -0.01, 0., 0.01, 0.05):
+              p = camb.CAMBparams()
+              p.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, omk=omk, tau=0.06)
+              p.InitPower.set_params(As=2.1e-9, ns=0.965)
+              p.set_for_lmax(1200, lens_potential_accuracy=1)
+              p.WantTransfer = True
+              start = time.perf_counter()
+              r = camb.get_results(p)
+              elapsed = time.perf_counter() - start
+              spectra = r.get_cmb_power_spectra(p=None, lmax=1200, CMB_unit="muK")
+              transfer = r.get_cmb_transfer_data()
+              arrays = dict(total=spectra["total"], unlensed=spectra["unlensed_scalar"], lens=r.get_lens_potential_cls(lmax=1200), delta=transfer.delta_p_l_k, L=transfer.L, q=transfer.q, elapsed=elapsed)
+              np.savez_compressed(out / f"{omk:+.2f}.npz", **arrays)
+              print(f"SPECTRA {omk:+.2f} {elapsed:.3f}s", flush=True)
+          PY
+          # Run each isolated source tree in its own interpreter.
+          (cd "$RUNNER_TEMP/camb-baseline"; PYTHONPATH="$PWD" AUDIT_OUT="$RUNNER_TEMP/base-out" python "$RUNNER_TEMP/compare.py")
+          PYTHONPATH="$PWD" AUDIT_OUT="$RUNNER_TEMP/candidate-out" python "$RUNNER_TEMP/compare.py"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          import numpy as np
+          t=Path(os.environ["RUNNER_TEMP"])
+          for p in sorted((t/"base-out").glob("*.npz")):
+              a=np.load(p); b=np.load(t/"candidate-out"/p.name)
+              print("AUDIT",p.name,"seconds",float(a["elapsed"]),float(b["elapsed"]))
+              for name in ("total","unlensed","lens","delta"):
+                  x=a[name]; y=b[name]
+                  if x.shape != y.shape:
+                      print(name,"shape mismatch",x.shape,y.shape); continue
+                  if not np.isfinite(y).all(): raise RuntimeError("nonfinite "+name)
+                  if name == "delta" and (not np.array_equal(a["L"],b["L"]) or not np.array_equal(a["q"],b["q"])):
+                      print(name,"grid mismatch"); continue
+                  if name == "delta":
+                      scale=np.maximum(np.max(np.abs(x),axis=(1,2),keepdims=True),1e-300)
+                  else:
+                      scale=np.maximum(np.max(np.abs(x[2:]),axis=0,keepdims=True),1e-300)
+                  e=np.max(np.abs(x-y)/scale,axis=tuple(range(x.ndim-1))) if name!="delta" else np.max(np.abs(x-y)/scale,axis=(1,2))
+                  print(name,"max normalized",e.tolist())
+          PY
