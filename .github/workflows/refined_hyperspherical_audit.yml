@@ -1,4 +1,4 @@
-name: Closed gate reference comparison
+name: Final closed-mode reference audit
 on:
   push:
     branches: [test-refined-hyperspherical-audit]
@@ -7,7 +7,17 @@ permissions:
 jobs:
   compare:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {omk: "-0.05", boost: "1", lmax: "1200", tensor: "1"}
+          - {omk: "-0.1", boost: "1", lmax: "1200", tensor: "0"}
+          - {omk: "-0.05", boost: "2", lmax: "2500", tensor: "0"}
+          - {omk: "-0.01", boost: "1", lmax: "1200", tensor: "0"}
+          - {omk: "0", boost: "1", lmax: "1200", tensor: "0"}
+          - {omk: "0.05", boost: "1", lmax: "1200", tensor: "0"}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -16,87 +26,98 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.10"
-      - name: Build four variants and compare
+      - name: Build actual PR and run focused tests
+        run: |
+          python -m pip install -e .
+          OMP_NUM_THREADS=1 python -m unittest camb.tests.mathutils_test.MathutilsTest.test_hyperspherical_refined_exact_representations camb.tests.mathutils_test.MathutilsTest.test_hyperspherical_corrected_airy camb.tests.mathutils_test.MathutilsTest.test_hyperspherical_refined_closed_zeros camb.tests.mathutils_test.MathutilsTest.test_hyperspherical_closed_seed_consistency
+      - name: Compare exact PR with recurrence reference or baseline
         env:
           OMP_NUM_THREADS: "1"
+          OMK: ${{ matrix.omk }}
+          BOOST: ${{ matrix.boost }}
+          LMAX: ${{ matrix.lmax }}
+          TENSOR: ${{ matrix.tensor }}
         run: |
           cat > "$RUNNER_TEMP/compare.py" <<'PY'
           import os, time
           from pathlib import Path
           import numpy as np
           import camb
-          print("IMPORT", camb.__file__, flush=True)
-          p = camb.CAMBparams()
-          p.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, omk=-0.05, tau=0.06)
-          p.InitPower.set_params(As=2.1e-9, ns=0.965)
-          p.set_for_lmax(1200, lens_potential_accuracy=1)
-          p.WantTransfer = True
-          for boost in (1, 2, 4):
-              p.Accuracy.NonFlatIntAccuracyBoost = boost
-              assert p.Accuracy.NonFlatIntAccuracyBoost == boost
-              start=time.perf_counter()
-              r=camb.get_results(p)
-              elapsed=time.perf_counter()-start
-              spectra=r.get_cmb_power_spectra(lmax=1200, CMB_unit="muK")
-              tr=r.get_cmb_transfer_data()
-              np.savez_compressed(Path(os.environ["RUNNER_TEMP"])/f'{os.environ["VARIANT"]}-{boost}.npz', total=spectra["total"], unlensed=spectra["unlensed_scalar"], lens=r.get_lens_potential_cls(lmax=1200), delta=tr.delta_p_l_k,L=tr.L,q=tr.q)
-              print("RUNTIME",os.environ["VARIANT"],boost,elapsed,flush=True)
+          p=camb.CAMBparams()
+          p.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, omk=float(os.environ["OMK"]), tau=0.06)
+          tensor=os.environ["TENSOR"]=="1"
+          p.InitPower.set_params(As=2.1e-9, ns=0.965, r=0.01 if tensor else 0)
+          p.WantTensors=tensor
+          lmax=int(os.environ["LMAX"])
+          p.set_for_lmax(lmax, lens_potential_accuracy=1)
+          p.WantTransfer=True
+          p.Accuracy.NonFlatIntAccuracyBoost=float(os.environ["BOOST"])
+          assert p.Accuracy.NonFlatIntAccuracyBoost==float(os.environ["BOOST"])
+          t=time.perf_counter()
+          r=camb.get_results(p)
+          elapsed=time.perf_counter()-t
+          s=r.get_cmb_power_spectra(lmax=lmax,CMB_unit="muK")
+          tr=r.get_cmb_transfer_data()
+          a=dict(total=s["total"],unlensed=s["unlensed_scalar"],lens=r.get_lens_potential_cls(lmax=lmax),delta=tr.delta_p_l_k,L=tr.L,q=tr.q)
+          if tensor:
+              tt=r.get_cmb_transfer_data(tp="tensor")
+              a.update(tensor=s["tensor"],tdelta=tt.delta_p_l_k,tL=tt.L,tq=tt.q)
+          for k,v in a.items():
+              assert np.isfinite(v).all(),k
+          print("RUNTIME",os.environ["VARIANT"],elapsed,"import",camb.__file__,flush=True)
+          np.savez_compressed(Path(os.environ["RUNNER_TEMP"])/f'{os.environ["VARIANT"]}.npz',**a)
           PY
-          for spec in baseline:3d524fece061bd88e3b2786312bfe99391826fc6 safe:a3b2d13d01a86fd2effb21734efb5e1c3c0a4873 gate:6eb9672d6f1a2b17f97cb8b773c0466a1321029c rec:6eb9672d6f1a2b17f97cb8b773c0466a1321029c; do
-            name=${spec%%:*}
-            sha=${spec#*:}
-            git worktree add --detach "$RUNNER_TEMP/$name" "$sha"
-            (
-              cd "$RUNNER_TEMP/$name"
-              git submodule update --init --recursive
-              if [ "$name" = rec ]; then
-                python - <<'PY'
+          VARIANT=candidate PYTHONPATH="$PWD" python "$RUNNER_TEMP/compare.py"
+          if [[ "$OMK" == -* ]]; then
+            python - <<'PY'
           from pathlib import Path
           p=Path("fortran/hyperspherical_bessels_olver.f90")
           s=p.read_text()
-          old="    sin_k = curved_radius(K, achi)\n    val = olver_reduced"
-          new="""    sin_k = curved_radius(K, achi)
-              if (K == 1 .and. nu-real(l,dl) <= 112._dl) then
-                  val = symm*phi_recurs(l,K,nu,achi)
-                  if (reduced) val = val*sin_k
+          old="    call normalize_chi(l, K, nu, chi, achi, symm)"
+          new=old+"""
+
+              if (use_closed_refined_mode(l, K, nu)) then
+                  val = symm*phi_recurs(l, K, nu, achi)
+                  if (reduced) val = val*curved_radius(K, achi)
                   return
               end if
-              val = olver_reduced"""
+          """
           assert s.count(old)==1
           p.write_text(s.replace(old,new))
           PY
-              fi
-              python -m pip install -e .
-              VARIANT="$name" PYTHONPATH="$PWD" python "$RUNNER_TEMP/compare.py"
-            )
-          done
+            python -m pip install -e .
+            VARIANT=reference PYTHONPATH="$PWD" python "$RUNNER_TEMP/compare.py"
+          else
+            git worktree add --detach "$RUNNER_TEMP/baseline" 3d524fece061bd88e3b2786312bfe99391826fc6
+            (cd "$RUNNER_TEMP/baseline"; git submodule update --init --recursive; python -m pip install -e .; VARIANT=reference PYTHONPATH="$PWD" python "$RUNNER_TEMP/compare.py")
+          fi
           python - <<'PY'
           import os
           from pathlib import Path
           import numpy as np
           t=Path(os.environ["RUNNER_TEMP"])
-          for boost in (1,2,4):
-              ref=np.load(t/f"rec-{boost}.npz")
-              for v in ("baseline","safe","gate"):
-                  a=np.load(t/f"{v}-{boost}.npz")
-                  for k in ("total","unlensed","lens","delta"):
-                      x=ref[k]; y=a[k]
-                      if x.shape!=y.shape or (k=="delta" and (not np.array_equal(ref["L"],a["L"]) or not np.array_equal(ref["q"],a["q"]))):
-                          print("GRID_MISMATCH",v,boost,k); continue
-                      axes=(1,2) if k=="delta" else (0,)
-                      scale=np.maximum(np.max(np.abs(x),axis=axes,keepdims=True),1e-300)
-                      err=np.abs(x-y)/scale
-                      idx=np.unravel_index(np.argmax(err),err.shape)
-                      print("REFERENCE_ERROR",v,boost,k,np.max(err,axis=axes).tolist(),"worst",idx,"ref",float(x[idx]),"candidate",float(y[idx]))
-                      if k=="delta":
-                          i,j,n=idx
-                          print("WORST_MODE",v,boost,"source",i,"l",int(ref["L"][j]),"q",float(ref["q"][n]))
-              if boost!=4:
-                  a=np.load(t/f"rec-{boost}.npz"); b=np.load(t/"rec-4.npz")
-                  for k in ("total","lens","delta"):
-                      x=b[k]; y=a[k]
-                      if x.shape!=y.shape or (k=="delta" and (not np.array_equal(b["L"],a["L"]) or not np.array_equal(b["q"],a["q"]))): continue
-                      axes=(1,2) if k=="delta" else (0,)
-                      scale=np.maximum(np.max(np.abs(x),axis=axes,keepdims=True),1e-300)
-                      print("REF_CONVERGENCE",boost,k,np.max(np.abs(x-y)/scale,axis=axes).tolist())
+          a=np.load(t/"reference.npz"); b=np.load(t/"candidate.npz")
+          for k in a.files:
+              if k in ("L","q","tL","tq"):
+                  assert np.array_equal(a[k],b[k]),k
+                  continue
+              x=a[k]; y=b[k]
+              assert x.shape==y.shape,k
+              axes=(1,2) if k in ("delta","tdelta") else (0,)
+              e=np.abs(x-y)/np.maximum(np.max(np.abs(x),axis=axes,keepdims=True),1e-300)
+              print("FINAL_ERROR",k,np.max(e,axis=axes).tolist(),flush=True)
           PY
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+      - run: python -m pip install pre-commit
+      - name: Format exact PR files
+        run: |
+          files="fortran/hyperspherical_bessels_refined.f90 fortran/hyperspherical_bessels_olver.f90 fortran/cmbmain.f90 fortran/tests/phi_olver_gate_validation.f90 camb/tests/mathutils_test.py docs/changelog/hyperspherical_refined.tex"
+          pre-commit run --files $files || true
+          pre-commit run --files $files
+          git diff -- $files

@@ -411,13 +411,15 @@
     end if
     if (chi <= 1.0e-12_dl) return
 
+    if (k == 1) then
+        predicts_recursive_fallback = nu - real(l, dl) < PI/(4*OLVER_GATE_CLOSED_EPS)
+        return
+    end if
+
     alpha_gate = nu/real(l, dl)
     if (use_smallchi_map_test(l, nu, chi, alpha_gate)) return
 
-    if (k == 1) then
-        metric = PI/(4._dl*(nu - real(l, dl)))
-        predicts_recursive_fallback = metric > OLVER_GATE_CLOSED_EPS
-    else if (k == -1) then
+    if (k == -1) then
         if (alpha_gate < open_alpha_cut(l)) then
             metric = chi/(2._dl*max(nu, tiny(1._dl)))
             predicts_recursive_fallback = metric > OLVER_GATE_OPEN_EPS

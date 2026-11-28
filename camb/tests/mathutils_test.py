@@ -155,14 +155,27 @@ class MathutilsTest(unittest.TestCase):
             with self.subTest(nu=nu):
                 np.testing.assert_allclose(phi_olver(10000, 1, nu, np.array(chi)), expected, atol=5e-15, rtol=0)
 
-    def test_hyperspherical_closed_gate_continuity(self):
-        # The former radial switch was at chi = 1.568 for this mode.
-        # These independent 70-digit Gegenbauer values straddle that switch.
-        chi = np.array([1.5679999843199999, 1.568, 1.56800001568])
-        expected = np.array([-7.360929343717439e-5, -7.361633360463865e-5, -7.362337375159818e-5])
-        result = phi_olver(5000, 1, 5112.0, chi)
-        np.testing.assert_allclose(result, expected, rtol=0, atol=1e-10)
-        np.testing.assert_allclose(np.diff(result), np.diff(expected), rtol=0, atol=1e-11)
+    def test_hyperspherical_closed_seed_consistency(self):
+        # Independent 70-digit normalized Gegenbauer values. The first pair
+        # straddles the old radial gate for the mode implicated in a closed
+        # cosmology; the other pairs straddle the former small-chi shortcut.
+        cases = [
+            (37, 74.0, [0.51795, 0.51805], [0.021196508214292316, 0.021245835109033648]),
+            (9, 102.0, [0.6736099624448318, 0.6737099624448318], [-0.015632649048542707, -0.015606419143115245]),
+            (4, 104.0, [0.8516154936103623, 0.8517154936103623], [0.008118773675604747, 0.008220239792309979]),
+            (57, 142.0, [0.41675201065870965, 0.41685201065870964], [0.019351142875682795, 0.019411950813875214]),
+        ]
+        for ell, nu, chi, expected in cases:
+            with self.subTest(ell=ell, nu=nu):
+                chi = np.array(chi)
+                expected = np.array(expected)
+                result = phi_olver(ell, 1, nu, chi)
+                np.testing.assert_allclose(result, expected, rtol=5e-7, atol=0)
+                # Numerov's inferred slope is sensitive to the difference of
+                # seed errors, not merely the individual function errors.
+                np.testing.assert_allclose(
+                    np.diff(result * np.sin(chi)), np.diff(expected * np.sin(chi)), rtol=0, atol=2e-10
+                )
 
     def test_hyperspherical_corrected_airy(self):
         # Both curvature signs and both sides of the effective-mu=4,16 cuts.
